@@ -1,6 +1,4 @@
-from ast import Dict
-from collections.abc import Callable
-from typing import Any
+from typing import Any, Callable, Dict
 
 import sonnet as snt
 
@@ -33,9 +31,10 @@ class ScenarioEvaluation:
             trained_networks (Networks): Trained networks for agents from the substate
         """
         self._system = scenario_system
-        self._evaluator_loop = evaluator_loop_creator(self.system)
+        self._evaluator_loop = evaluator_loop_creator(self._system)
+        self._evaluator_loop._loop_label
         self._trained_networks = trained_networks
-        agent_network_setter(self._evaluator_loop._evaluator, trained_networks)
+        agent_network_setter(self._evaluator_loop._executor, trained_networks)
 
     def run(self) -> None:
         """Runs an episode using the evaluator loop"""

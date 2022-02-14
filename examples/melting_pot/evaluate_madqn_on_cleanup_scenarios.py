@@ -19,6 +19,7 @@ import random
 from datetime import datetime
 from typing import Any, Callable, Dict
 
+import reverb
 import sonnet as snt
 from absl import app, flags
 from acme import specs as acme_specs
@@ -39,6 +40,9 @@ from mava.utils.environments.meltingpot_utils.evaluation_utils import (
     MAVASystem,
     ScenarioEvaluation,
 )
+from mava.utils.environments.meltingpot_utils.network_utils import (
+    make_default_madqn_networks,
+)
 from mava.utils.loggers import logger_utils
 
 FLAGS = flags.FLAGS
@@ -48,11 +52,11 @@ flags.DEFINE_string(
     str(datetime.now()),
     "Experiment identifier that can be used to continue experiments.",
 )
-flags.DEFINE_string("log_dir", "./logs", "Base dir to store experiments.")
+flags.DEFINE_string("logdir", "./logs", "Base dir to store experiments.")
 flags.DEFINE_string(
     "checkpoint_dir", "", "directory where checkpoints were saved during training"
 )
-flags.DEFINE_string("substrate", "clean_up_0", "scenario to evaluste on")
+flags.DEFINE_string("substrate", "clean_up", "scenario to evaluste on")
 
 
 def madqn_evaluation_loop_creator(system: MAVASystem) -> ParallelEnvironmentLoop:
@@ -64,7 +68,11 @@ def madqn_evaluation_loop_creator(system: MAVASystem) -> ParallelEnvironmentLoop
     Returns:
         [ParallelEnvironmentLoop]: an environment loop for evaluation
     """
-    evaluator_loop = system.evaluator()
+    replay_server = reverb.Server(tables=system.replay())
+    replay_client = reverb.Client(f"localhost:{replay_server.port}")
+    counter = system.counter(False)
+    trainer = system.trainer(replay_client, counter)
+    evaluator_loop = system.evaluator(trainer, counter, trainer)
     return evaluator_loop
 
 
@@ -87,16 +95,16 @@ def get_trained_madqn_networks(
     system = madqn.MADQN(
         environment_factory=substrate_environment_factory,
         network_factory=network_factory,
-        logger_factory=None,
-        num_executors=1,
         exploration_scheduler_fn=LinearExplorationScheduler(
             epsilon_min=0.05, epsilon_decay=1e-4
         ),
-        importance_sampling_exponent=0.2,
-        optimizer=snt.optimizers.Adam(learning_rate=1e-4),
         checkpoint_subpath=checkpoint_dir,
+        shared_weights=False,
     )
-    system.trainer()
+    replay_server = reverb.Server(tables=system.replay())
+    replay_client = reverb.Client(f"localhost:{replay_server.port}")
+    trainer = system.trainer(replay_client, system.counter(False))
+    return trainer._q_networks
 
 
 def madqn_agent_network_setter(
@@ -116,51 +124,50 @@ def madqn_agent_network_setter(
 
 def evaluate_on_scenarios(substrate, checkpoint_dir) -> None:
     """Tests the system on all the scenarios associated with the specified substrate"""
-    scenarios = scenarios_for_substrate(FLAGS.substrate)
+    scenarios = scenarios_for_substrate(substrate)
 
     # Networks.
-    network_factory = lp_utils.partial_kwargs(madqn.make_default_networks)
+    network_factory = lp_utils.partial_kwargs(make_default_madqn_networks)
 
     trained_networks = get_trained_madqn_networks(
         substrate, network_factory, checkpoint_dir
     )
 
     for scenario in scenarios:
-        evaluate_on_scenario(scenario, trained_networks)
+        evaluate_on_scenario(scenario, network_factory, trained_networks)
 
 
-def evaluate_on_scenario(scenario_name: str, trained_networks: AgentNetworks) -> None:
+def evaluate_on_scenario(
+    scenario_name: str, network_factory, trained_networks: AgentNetworks
+) -> None:
     """Tests the system on a given scenario"""
 
     # Scenario Environment.
     scenario_environment_factory = EnvironmentFactory(scenario=scenario_name)
 
-    # Networks.
-    network_factory = lp_utils.partial_kwargs(madqn.make_default_networks)
-
     # Log every [log_every] seconds.
     log_every = 10
-    logger_factory = functools.partial(
-        logger_utils.make_logger,
-        directory=FLAGS.log_dir,
-        to_terminal=True,
-        to_tensorboard=True,
-        time_stamp=FLAGS.mava_id,
-        time_delta=log_every,
-    )
+
+    def logger_factory(label, **kwargs):
+        logger = logger_utils.make_logger(
+            scenario_name,
+            directory=FLAGS.logdir,
+            to_terminal=True,
+            to_tensorboard=True,
+            time_stamp=FLAGS.mava_id,
+            time_delta=log_every,
+        )
+        return logger
 
     # Create madqn system for scenario
     scenario_system = madqn.MADQN(
         environment_factory=scenario_environment_factory,
         network_factory=network_factory,
         logger_factory=logger_factory,
-        num_executors=1,
         exploration_scheduler_fn=LinearExplorationScheduler(
             epsilon_min=0.05, epsilon_decay=1e-4
         ),
-        importance_sampling_exponent=0.2,
-        optimizer=snt.optimizers.Adam(learning_rate=1e-4),
-        checkpoint_subpath=None,
+        shared_weights=False,
     )
 
     # Evaluation loop
@@ -179,7 +186,7 @@ def main(_: Any) -> None:
     Args:
         _ (Any): ...
     """
-    evaluate_on_scenarios(FLAGS.scenario, FLAGS.checkpoint_dir)
+    evaluate_on_scenarios(FLAGS.substrate, FLAGS.checkpoint_dir)
 
 
 if __name__ == "__main__":

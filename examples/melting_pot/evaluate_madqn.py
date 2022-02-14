@@ -32,7 +32,7 @@ from mava.utils.environments.meltingpot_utils.env_utils import (
     EnvironmentFactory,
     scenarios_for_substrate,
 )
-from mava.utils.environments.meltingpot_utils.evaluation import ScenarioEvaluation
+from mava.utils.environments.meltingpot_utils.evaluation_utils import ScenarioEvaluation
 from mava.utils.environments.meltingpot_utils.registry import get_system_creator_cls
 from mava.utils.environments.meltingpot_utils.registry.base import get_networks_restorer
 from mava.utils.environments.meltingpot_utils.training import SubstrateTraining

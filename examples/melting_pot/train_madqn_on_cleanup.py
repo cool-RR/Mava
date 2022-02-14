@@ -28,9 +28,6 @@ from mava.components.tf.modules.exploration.exploration_scheduling import (
 from mava.systems.tf import madqn
 from mava.utils import lp_utils
 from mava.utils.environments.meltingpot_utils.env_utils import EnvironmentFactory
-from mava.utils.environments.meltingpot_utils.network_utils import (
-    make_default_madqn_networks,
-)
 from mava.utils.loggers import logger_utils
 
 FLAGS = flags.FLAGS
@@ -40,13 +37,12 @@ flags.DEFINE_string(
     str(datetime.now()),
     "Experiment identifier that can be used to continue experiments.",
 )
-flags.DEFINE_string("logdir", "./logs", "Base dir to store experiments.")
+flags.DEFINE_string("base_dir", "~/mava", "Base dir to store experiments.")
 flags.DEFINE_string("substrate", "clean_up", "substrate to train on.")
 
 
 def main(_: Any) -> None:
     """Train on substrate
-
     Args:
         _ (Any): ...
     """
@@ -54,16 +50,16 @@ def main(_: Any) -> None:
     environment_factory = EnvironmentFactory(substrate=FLAGS.substrate)
 
     # Networks.
-    network_factory = lp_utils.partial_kwargs(make_default_madqn_networks)
+    network_factory = lp_utils.partial_kwargs(madqn.make_default_networks)
 
     # Checkpointer appends "Checkpoints" to checkpoint_dir
-    checkpoint_dir = f"{FLAGS.logdir}/{FLAGS.mava_id}"
+    checkpoint_dir = f"{FLAGS.base_dir}/{FLAGS.mava_id}"
 
     # Log every [log_every] seconds.
     log_every = 10
     logger_factory = functools.partial(
         logger_utils.make_logger,
-        directory=FLAGS.logdir,
+        directory=FLAGS.base_dir,
         to_terminal=True,
         to_tensorboard=True,
         time_stamp=FLAGS.mava_id,
@@ -77,7 +73,7 @@ def main(_: Any) -> None:
         logger_factory=logger_factory,
         num_executors=1,
         exploration_scheduler_fn=LinearExplorationScheduler(
-            epsilon_start=1.0, epsilon_min=0.05, epsilon_decay=5e-4
+            epsilon_min=0.05, epsilon_decay=1e-4
         ),
         importance_sampling_exponent=0.2,
         optimizer=snt.optimizers.Adam(learning_rate=1e-4),
