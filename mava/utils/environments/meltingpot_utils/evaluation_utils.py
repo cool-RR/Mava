@@ -32,7 +32,6 @@ class ScenarioEvaluation:
         """
         self._system = scenario_system
         self._evaluator_loop = evaluator_loop_creator(self._system)
-        self._evaluator_loop._loop_label
         self._trained_networks = trained_networks
         agent_network_setter(self._evaluator_loop._executor, trained_networks)
 

@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-import functools
 import random
 from datetime import datetime
 from typing import Any, Callable, Dict
@@ -24,15 +22,16 @@ import sonnet as snt
 from absl import app, flags
 from acme import specs as acme_specs
 
+from mava import specs as mava_specs
 from mava.components.tf.modules.exploration.exploration_scheduling import (
     LinearExplorationScheduler,
 )
 from mava.core import Executor
 from mava.environment_loop import ParallelEnvironmentLoop
 from mava.systems.tf import madqn
-from mava.utils import lp_utils
+from mava.utils import loggers, lp_utils
 from mava.utils.environments.meltingpot_utils.env_utils import (
-    EnvironmentFactory,
+    MeltingPotEnvironmentFactory,
     scenarios_for_substrate,
 )
 from mava.utils.environments.meltingpot_utils.evaluation_utils import (
@@ -91,7 +90,7 @@ def get_trained_madqn_networks(
     Returns:
         Dict[str, snt.Module]: trained networks
     """
-    substrate_environment_factory = EnvironmentFactory(substrate=substrate)
+    substrate_environment_factory = MeltingPotEnvironmentFactory(substrate=substrate)
     system = madqn.MADQN(
         environment_factory=substrate_environment_factory,
         network_factory=network_factory,
@@ -104,13 +103,15 @@ def get_trained_madqn_networks(
     replay_server = reverb.Server(tables=system.replay())
     replay_client = reverb.Client(f"localhost:{replay_server.port}")
     trainer = system.trainer(replay_client, system.counter(False))
-    return trainer._q_networks
+    return trainer._q_networks  # type: ignore
 
 
 def madqn_agent_network_setter(
     evaluator: Executor, trained_networks: Dict[str, snt.Module]
 ) -> None:
-    """[summary]
+    """Sets the networks for agents in the evaluator
+
+    This is done by sampling from the trained networks
 
     Args:
         evaluator (Executor): [description]
@@ -122,8 +123,13 @@ def madqn_agent_network_setter(
         evaluator._q_networks[key] = trained_networks[trained_network_keys[idx]]
 
 
-def evaluate_on_scenarios(substrate, checkpoint_dir) -> None:
-    """Tests the system on all the scenarios associated with the specified substrate"""
+def evaluate_on_scenarios(substrate: str, checkpoint_dir: str) -> None:
+    """Tests the system on all the scenarios associated with the specified substrate
+
+    Args:
+        substrate: the name of the substrate for which scenarios would be created
+        checkpoint_dir: directory where checkpoint is to be restored from
+    """
     scenarios = scenarios_for_substrate(substrate)
 
     # Networks.
@@ -138,17 +144,26 @@ def evaluate_on_scenarios(substrate, checkpoint_dir) -> None:
 
 
 def evaluate_on_scenario(
-    scenario_name: str, network_factory, trained_networks: AgentNetworks
+    scenario_name: str,
+    network_factory: Callable[[mava_specs.MAEnvironmentSpec], AgentNetworks],
+    trained_networks: AgentNetworks,
 ) -> None:
-    """Tests the system on a given scenario"""
+    """Evaluates a system on a scenario using already trained networks
 
+    Args:
+        scenario_name: name of scenario in which system would be evaluated
+        network_factory: for instantiating the agent networks for the system
+        trained_networks: agent networks previously trained on the corresponding
+            substrate
+
+    """
     # Scenario Environment.
-    scenario_environment_factory = EnvironmentFactory(scenario=scenario_name)
+    scenario_environment_factory = MeltingPotEnvironmentFactory(scenario=scenario_name)
 
     # Log every [log_every] seconds.
     log_every = 10
 
-    def logger_factory(label, **kwargs):
+    def logger_factory(label: str, **kwargs: Any) -> loggers.Logger:
         logger = logger_utils.make_logger(
             scenario_name,
             directory=FLAGS.logdir,

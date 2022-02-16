@@ -30,7 +30,7 @@ except ModuleNotFoundError:
     Substrate = Any
 
 
-class EnvironmentFactory:
+class MeltingPotEnvironmentFactory:
     def __init__(self, substrate: str = None, scenario: str = None):
         """Initializes the env factory object
 
