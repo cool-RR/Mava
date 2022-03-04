@@ -3,6 +3,8 @@ from typing import Dict, List, Optional
 import sonnet as snt
 import tensorflow as tf
 
+from acme.tf import utils as tf_utils
+
 from mava import specs as mava_specs
 from mava.components.tf.networks.epsilon_greedy import EpsilonGreedy
 from mava.utils.enums import ArchitectureType
@@ -82,6 +84,7 @@ def make_default_madqn_networks(
     specs = {agent_net_keys[key]: specs[key] for key in specs.keys()}
     q_networks = {}
     action_selectors = {}
+    observation_networks = {}
     for key in specs.keys():
         num_dimensions = specs[key].actions.num_values
         if archecture_type == ArchitectureType.recurrent:
@@ -92,8 +95,10 @@ def make_default_madqn_networks(
             network = snt.Sequential([MeltingPotConvNet(), snt.Linear(num_dimensions)])
         q_networks[key] = network
         action_selectors[key] = EpsilonGreedy
+        observation_networks[key] = tf_utils.to_sonnet_module(tf.identity)
 
     return {
-        "q_networks": q_networks,
+        "values": q_networks,
         "action_selectors": action_selectors,
+        "observations": observation_networks
     }
