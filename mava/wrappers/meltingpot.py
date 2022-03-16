@@ -43,6 +43,29 @@ def obs_preprocessor(observation: Dict[str, NestedArray]) -> np.ndarray:
     """
     return np.array(observation["RGB"] / 255, np.float32)
 
+def global_state_function(environment: Substrate)-> np.ndarray:
+    """Obtain the global state of the environment
+    
+    The global state in this case is an array containing agents' positions and state
+
+    Args:
+        environment (Substrate): meltingpot substrate
+        
+    Returns:
+        np.ndarray: the global state
+    """
+    observation = environment.observation()
+    state = []
+    for key in observation:
+        if key in ["GLOBAL.TEXT","WORD.RGB"] or "RGB" in key or "LAYER" in key:
+            continue
+        value = observation[key].astype("float32")
+        if len(value.shape) < 1:
+            value =  np.expand_dims(value,0)
+        state += [value]
+        
+    return np.concatenate(state)
+    
 
 class MeltingpotEnvWrapper(ParallelEnvWrapper):
     """Environment wrapper for Melting pot."""
@@ -51,6 +74,8 @@ class MeltingpotEnvWrapper(ParallelEnvWrapper):
         self,
         environment: Union[Substrate, Scenario],
         preprocessor: Callable[[Dict[str, NestedArray]], np.ndarray] = obs_preprocessor,
+        global_state_fn: Optional[Callable[[Substrate], np.ndarray]] = global_state_function,
+        use_global_state: bool = False,
     ):
         """Constructor for Melting pot wrapper.
         Args:
@@ -66,6 +91,9 @@ class MeltingpotEnvWrapper(ParallelEnvWrapper):
         self._env_image: Optional[np.ndarray] = None
         self._screen = None
         self._preprocessor = preprocessor
+        self._global_state_fn = global_state_fn
+        self._use_global_state = use_global_state
+        
 
         # individual agent obervation
         _, _, _, obs = self._environment.reset()
@@ -76,16 +104,43 @@ class MeltingpotEnvWrapper(ParallelEnvWrapper):
 
     def reset(self) -> dm_env.TimeStep:
         """Resets the env.
+        
         Returns:
             dm_env.TimeStep: dm timestep.
         """
 
         timestep = self._environment.reset()
         self._reset_next_step = False
+        
+        # Possibly add state information to extras
+        extras = self.get_extras()
+
 
         self._set_env_image()
 
-        return self._refine_timestep(timestep)
+        return self._refine_timestep(timestep), extras
+    
+    def get_extras(self)->Dict[str, Any]:
+        """Obtains extra info abt the environment
+        
+        Returns:
+            Dict[str, Any]: extras
+        """
+        if self._use_global_state:
+            state = self.get_global_state()
+            extras = {"s_t": state}
+        else:
+            extras = {}
+            
+        return extras
+    
+    def get_global_state(self)->np.ndarray:
+        """Gets the global state of the environment
+
+        Returns:
+            np.ndarray: the global state
+        """
+        return self._global_state_fn(self._environment)
 
     def _set_env_image(self) -> None:
         """Sets an image of the environment from a timestep
@@ -198,7 +253,7 @@ class MeltingpotEnvWrapper(ParallelEnvWrapper):
             self._reset_next_step = True
             self._env_done = True
 
-        return timestep
+        return timestep, self.get_extras()
 
     def render(
         self, mode: str = "human", screen_width: int = 800, screen_height: int = 600
@@ -314,7 +369,7 @@ class MeltingpotEnvWrapper(ParallelEnvWrapper):
         Returns:
             Dict[str, specs.BoundedArray]: spec for extra data.
         """
-        return {}
+        return self.get_extras()
 
     @property
     def agents(self) -> List:

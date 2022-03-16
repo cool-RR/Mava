@@ -15,8 +15,9 @@
 
 from datetime import datetime
 from typing import Any, Callable
-from helpers import get_trained_madqn_networks
-from helpers import madqn_agent_network_setter, madqn_evaluation_loop_creator
+from Mava.mava.systems.tf import value_decomposition
+from helpers import qmix_agent_network_setter, qmix_evaluation_loop_creator
+from helpers import get_trained_qmix_networks
 
 from absl import app, flags
 
@@ -24,7 +25,7 @@ from mava import specs as mava_specs
 from mava.components.tf.modules.exploration.exploration_scheduling import (
     LinearExplorationScheduler,
 )
-from mava.systems.tf import madqn
+
 from mava.utils import loggers, lp_utils
 from mava.utils.environments.meltingpot_utils.env_utils import (
     MeltingPotEnvironmentFactory,
@@ -35,7 +36,7 @@ from mava.utils.environments.meltingpot_utils.evaluation_utils import (
     ScenarioEvaluation,
 )
 from mava.utils.environments.meltingpot_utils.network_utils import (
-    make_default_madqn_networks,
+    make_default_qmix_networks,
 )
 from mava.utils.loggers import logger_utils
 
@@ -63,9 +64,9 @@ def evaluate_on_scenarios(substrate: str, checkpoint_dir: str) -> None:
     scenarios = scenarios_for_substrate(substrate)
 
     # Networks.
-    network_factory = lp_utils.partial_kwargs(make_default_madqn_networks)
+    network_factory = lp_utils.partial_kwargs(make_default_qmix_networks)
 
-    trained_networks = get_trained_madqn_networks(
+    trained_networks = get_trained_qmix_networks(
         substrate, network_factory, checkpoint_dir
     )
 
@@ -104,8 +105,8 @@ def evaluate_on_scenario(
         )
         return logger
 
-    # Create madqn system for scenario
-    scenario_system = madqn.MADQN(
+    # Create qmix system for scenario
+    scenario_system = value_decomposition.ValueDecomposition(
         environment_factory=scenario_environment_factory,
         network_factory=network_factory,
         logger_factory=logger_factory,
@@ -118,8 +119,8 @@ def evaluate_on_scenario(
     # Evaluation loop
     evaluation_loop = ScenarioEvaluation(
         scenario_system,
-        madqn_evaluation_loop_creator,
-        madqn_agent_network_setter,
+        qmix_evaluation_loop_creator,
+        qmix_agent_network_setter,
         trained_networks,
     )
     evaluation_loop.run()

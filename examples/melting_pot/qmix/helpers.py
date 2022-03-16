@@ -1,4 +1,6 @@
-from mava.utils.environments.meltingpot_utils.env_utils import MeltingPotEnvironmentFactory
+from Mava.mava.components.tf.modules.exploration.exploration_scheduling import LinearExplorationScheduler
+from Mava.mava.systems.tf import value_decomposition
+from Mava.mava.utils.environments.meltingpot_utils.env_utils import MeltingPotEnvironmentFactory
 from mava.core import Executor
 from mava.environment_loop import ParallelEnvironmentLoop
 from mava.utils.environments.meltingpot_utils.evaluation_utils import (
@@ -8,17 +10,9 @@ from acme import specs as acme_specs
 import random
 from typing import Any, Callable, Dict
 import sonnet as snt
-from mava.components.tf.modules.exploration.exploration_scheduling import (
-    LinearExplorationScheduler,
-)
-from mava.systems.tf import madqn
-from mava.utils.environments.meltingpot_utils.env_utils import (
-    MeltingPotEnvironmentFactory,
-)
 
 
-
-def madqn_evaluation_loop_creator(system: MAVASystem) -> ParallelEnvironmentLoop:
+def qmix_evaluation_loop_creator(system: MAVASystem) -> ParallelEnvironmentLoop:
     """Creates an environment loop for the evaluation of a system
 
     Args:
@@ -32,12 +26,12 @@ def madqn_evaluation_loop_creator(system: MAVASystem) -> ParallelEnvironmentLoop
 
 
 
-def get_trained_madqn_networks(
+def get_trained_qmix_networks(
     substrate: str,
     network_factory: Callable[[acme_specs.BoundedArray], Dict[str, snt.Module]],
     checkpoint_dir: str,
 ) -> Dict[str, snt.Module]:
-    """Obtains madqn networks trained on the substrate
+    """Obtains qmix networks trained on the substrate
 
     Args:
         substrate (str): substrate in which the networks were trained
@@ -48,7 +42,7 @@ def get_trained_madqn_networks(
         Dict[str, snt.Module]: trained networks
     """
     substrate_environment_factory = MeltingPotEnvironmentFactory(substrate=substrate)
-    system = madqn.MADQN(
+    system = value_decomposition.ValueDecomposition(
         environment_factory=substrate_environment_factory,
         network_factory=network_factory,
         exploration_scheduler_fn=LinearExplorationScheduler(
@@ -67,7 +61,7 @@ def get_trained_madqn_networks(
 
 
 
-def madqn_agent_network_setter(
+def qmix_agent_network_setter(
     evaluator: Executor, trained_networks: Dict[str, Any]
 ) -> None:
     """Sets the networks for agents in the evaluator
@@ -80,6 +74,7 @@ def madqn_agent_network_setter(
     """
     observation_networks = trained_networks["observations"]
     value_networks = trained_networks["values"]
+    selectors = trained_networks["selectors"]
     
     # network keys
     trained_network_keys = list(trained_networks["observations"].keys())
@@ -95,4 +90,6 @@ def madqn_agent_network_setter(
         # value networks
         evaluator._value_networks[key]=value_networks[trained_network_keys[idx]]
         
+        # selectors
+        evaluator._action_selectors[key]=selectors[trained_network_keys[idx]]
 

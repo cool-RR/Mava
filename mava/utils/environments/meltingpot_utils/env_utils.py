@@ -31,7 +31,7 @@ except ModuleNotFoundError:
 
 
 class MeltingPotEnvironmentFactory:
-    def __init__(self, substrate: str = None, scenario: str = None):
+    def __init__(self, substrate: str = None, scenario: str = None, use_global_state=False):
         """Initializes the env factory object
 
         sets the substrate/scenario using the available ones in meltingpot
@@ -39,7 +39,9 @@ class MeltingPotEnvironmentFactory:
         Args:
             substrate (str, optional): what substrate to use. Defaults to None.
             scenario (str, optional): what scenario to use. Defaults to None.
+            use_global_state (str, optional): whether to use the global state or not
         """
+        self._use_global_state = use_global_state
         assert (substrate is None) or (
             scenario is None
         ), "substrate or scenario must be specified"
@@ -70,7 +72,7 @@ class MeltingPotEnvironmentFactory:
             [Substrate]: A substrate
         """
         env = load_substrate(self._substrate_name)
-        return MeltingpotEnvWrapper(env)
+        return MeltingpotEnvWrapper(env, use_global_state=self._use_global_state)
 
     def _scenario(self) -> Scenario:
         """Returns a scenario as an environment
@@ -78,7 +80,6 @@ class MeltingPotEnvironmentFactory:
         Returns:
             [Scenario]: A scenario or None
         """
-
         env = load_scenario(self._scenario_name)
         return MeltingpotEnvWrapper(env)
 
