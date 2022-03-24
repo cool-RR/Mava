@@ -49,7 +49,7 @@ flags.DEFINE_string(
 )
 flags.DEFINE_string("logdir", "./logs", "Base dir to store experiments.")
 flags.DEFINE_string(
-    "checkpoint_dir", "", "directory where checkpoints were saved during training"
+    "checkpoint_dir", "/home/app/mava/logs/2022-03-16 13:16:11.490222", "directory where checkpoints were saved during training"
 )
 flags.DEFINE_string("substrate", "clean_up", "scenario to evaluste on")
 
