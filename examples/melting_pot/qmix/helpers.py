@@ -1,6 +1,6 @@
-from Mava.mava.components.tf.modules.exploration.exploration_scheduling import LinearExplorationScheduler
-from Mava.mava.systems.tf import value_decomposition
-from Mava.mava.utils.environments.meltingpot_utils.env_utils import MeltingPotEnvironmentFactory
+from mava.components.tf.modules.exploration.exploration_scheduling import LinearExplorationScheduler
+from mava.systems.tf import value_decomposition
+from mava.utils.environments.meltingpot_utils.env_utils import MeltingPotEnvironmentFactory
 from mava.core import Executor
 from mava.environment_loop import ParallelEnvironmentLoop
 from mava.utils.environments.meltingpot_utils.evaluation_utils import (
@@ -45,6 +45,7 @@ def get_trained_qmix_networks(
     system = value_decomposition.ValueDecomposition(
         environment_factory=substrate_environment_factory,
         network_factory=network_factory,
+        mixer="qmix",
         exploration_scheduler_fn=LinearExplorationScheduler(
             epsilon_min=0.05, epsilon_decay=1e-4
         ),

@@ -15,7 +15,7 @@
 
 from datetime import datetime
 from typing import Any, Callable
-from Mava.mava.systems.tf import value_decomposition
+from mava.systems.tf import value_decomposition
 from helpers import qmix_agent_network_setter, qmix_evaluation_loop_creator
 from helpers import get_trained_qmix_networks
 
@@ -64,7 +64,9 @@ def evaluate_on_scenarios(substrate: str, checkpoint_dir: str) -> None:
     scenarios = scenarios_for_substrate(substrate)
 
     # Networks.
-    network_factory = lp_utils.partial_kwargs(make_default_qmix_networks)
+    network_factory = lp_utils.partial_kwargs(
+        value_decomposition.make_default_networks,
+    )
 
     trained_networks = get_trained_qmix_networks(
         substrate, network_factory, checkpoint_dir
@@ -109,6 +111,7 @@ def evaluate_on_scenario(
     scenario_system = value_decomposition.ValueDecomposition(
         environment_factory=scenario_environment_factory,
         network_factory=network_factory,
+        mixer="qmix",
         logger_factory=logger_factory,
         exploration_scheduler_fn=LinearExplorationScheduler(
             epsilon_min=0.05, epsilon_decay=1e-4
