@@ -61,7 +61,7 @@ class FeedForwardExecutor(core.Executor):
         self._adder = adder
         self._variable_client = variable_client
 
-    @tf.function
+    # @tf.function
     def _policy(
         self, agent: str, observation: types.NestedTensor
     ) -> types.NestedTensor:
@@ -227,7 +227,7 @@ class RecurrentExecutor(core.Executor):
         self._store_recurrent_state = store_recurrent_state
         self._states: Dict[str, Any] = {}
 
-    @tf.function
+    # @tf.function
     def _policy(
         self,
         agent: str,

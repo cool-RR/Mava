@@ -270,7 +270,7 @@ class MAPPOTrainer(mava.Trainer):
             )
         return observation_trans
 
-    @tf.function
+    # @tf.function
     def _minibatch_update(self, minibatch_data: Any) -> Dict:
         """Minibatch step.
 

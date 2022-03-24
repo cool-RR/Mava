@@ -327,7 +327,7 @@ class MADDPGBaseTrainer(mava.Trainer):
             actions[agent] = self._target_policy_networks[agent_key](next_observation)
         return actions
 
-    @tf.function
+    # @tf.function
     def _step(
         self,
     ) -> Dict[str, Dict[str, Any]]:
@@ -1226,7 +1226,7 @@ class MADDPGBaseRecurrentTrainer(mava.Trainer):
             actions[agent] = tf2_utils.batch_to_sequence(outputs)
         return actions
 
-    @tf.function
+    # @tf.function
     def _step(
         self,
     ) -> Dict[str, Dict[str, Any]]:

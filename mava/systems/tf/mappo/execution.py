@@ -111,7 +111,7 @@ class MAPPOFeedForwardExecutor(executors.FeedForwardExecutor):
         log_prob = policy.log_prob(action)
         return log_prob, action
 
-    @tf.function
+    # @tf.function
     def _select_actions(
         self, observations: Dict[str, OLT]
     ) -> Tuple[Dict[str, types.NestedArray], Dict[str, types.NestedArray]]:

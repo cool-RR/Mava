@@ -93,7 +93,7 @@ class MADDPGFeedForwardExecutor(executors.FeedForwardExecutor):
             variable_client=variable_client,
         )
 
-    @tf.function
+    # @tf.function
     def _policy(
         self, agent: str, observation: types.NestedTensor
     ) -> types.NestedTensor:
@@ -284,7 +284,7 @@ class MADDPGRecurrentExecutor(executors.RecurrentExecutor):
             store_recurrent_state=store_recurrent_state,
         )
 
-    @tf.function
+    # @tf.function
     def _policy(
         self,
         agent: str,

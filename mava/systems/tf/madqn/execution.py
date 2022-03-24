@@ -160,6 +160,7 @@ class MADQNFeedForwardExecutor(executors.FeedForwardExecutor, DQNExecutor):
         self._adder = adder
         self._variable_client = variable_client
 
+    # @tf.function
     def _policy(
         self,
         agent: str,
@@ -196,7 +197,6 @@ class MADQNFeedForwardExecutor(executors.FeedForwardExecutor, DQNExecutor):
 
         return action
 
-    @tf.function
     def _select_actions(
         self, observations: Dict[str, types.NestedArray]
     ) -> types.NestedArray:
@@ -360,6 +360,7 @@ class MADQNRecurrentExecutor(executors.RecurrentExecutor, DQNExecutor):
         self._action_selectors = action_selectors
         self._states: Dict[str, Any] = {}
 
+    # @tf.function
     def _policy(
         self,
         agent: str,
@@ -398,7 +399,6 @@ class MADQNRecurrentExecutor(executors.RecurrentExecutor, DQNExecutor):
 
         return action, new_state
 
-    @tf.function
     def _select_actions(
         self,
         observations: Dict[str, types.NestedArray],

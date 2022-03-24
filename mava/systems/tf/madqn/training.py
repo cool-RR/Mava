@@ -235,7 +235,7 @@ class MADQNTrainer(mava.Trainer):
             o_t[agent] = tree.map_structure(tf.stop_gradient, o_t[agent])
         return o_tm1, o_t
 
-    @tf.function
+    # @tf.function
     def _step(
         self,
     ) -> Dict[str, Dict[str, Any]]:
@@ -599,7 +599,7 @@ class MADQNRecurrentTrainer(mava.Trainer):
         """Depricated"""
         pass
 
-    @tf.function
+    # @tf.function
     def _step(
         self,
     ) -> Dict[str, Dict[str, Any]]:
