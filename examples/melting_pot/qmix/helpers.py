@@ -75,7 +75,6 @@ def qmix_agent_network_setter(
     """
     observation_networks = trained_networks["observations"]
     value_networks = trained_networks["values"]
-    selectors = trained_networks["selectors"]
     
     # network keys
     trained_network_keys = list(trained_networks["observations"].keys())
@@ -90,7 +89,4 @@ def qmix_agent_network_setter(
         
         # value networks
         evaluator._value_networks[key]=value_networks[trained_network_keys[idx]]
-        
-        # selectors
-        evaluator._action_selectors[key]=selectors[trained_network_keys[idx]]
 

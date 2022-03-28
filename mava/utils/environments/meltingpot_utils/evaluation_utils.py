@@ -33,6 +33,7 @@ class ScenarioEvaluation:
         self._system = scenario_system
         self._evaluator_loop = evaluator_loop_creator(self._system)
         self._trained_networks = trained_networks
+        self._evaluator_loop._executor._interval = None
         agent_network_setter(self._evaluator_loop._executor, trained_networks)
 
     def run(self) -> None:
