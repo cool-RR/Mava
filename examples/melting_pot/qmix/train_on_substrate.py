@@ -17,6 +17,7 @@
 import functools
 from datetime import datetime
 from typing import Any
+from mava.utils.environments.meltingpot_utils.network_utils import make_default_qmix_networks
 from mava.components.tf.modules.exploration.exploration_scheduling import LinearExplorationTimestepScheduler
 from mava.systems.tf import value_decomposition
 
@@ -46,9 +47,7 @@ def main(_: Any) -> None:
     environment_factory = MeltingPotEnvironmentFactory(substrate=FLAGS.substrate, use_global_state=True)
 
     # Networks.
-    network_factory = lp_utils.partial_kwargs(
-        value_decomposition.make_default_networks,
-    )
+    network_factory = lp_utils.partial_kwargs(make_default_qmix_networks)
 
     # Checkpointer appends "Checkpoints" to checkpoint_dir
     checkpoint_dir = f"{FLAGS.logdir}/{FLAGS.mava_id}"

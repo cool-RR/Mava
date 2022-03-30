@@ -108,15 +108,12 @@ def make_default_madqn_networks(
 def make_default_qmix_networks(
     environment_spec: mava_specs.MAEnvironmentSpec,
     agent_net_keys: Dict[str, str],
-    archecture_type: ArchitectureType = ArchitectureType.feedforward,
 ) -> Dict[str, snt.Module]:
     """Returns a network for qmix for melting pot envs
 
     Args:
         environment_spec (mava_specs.MAEnvironmentSpec): The environment specification
         agent_net_keys (Dict[str, str]): specifies networks for agent types
-        archecture_type (ArchitectureType, optional): network architecture, recurrent or
-            feedforward. Defaults to ArchitectureType.feedforward.
 
     Returns:
         Dict[str, snt.Module]: agent networks
@@ -128,12 +125,9 @@ def make_default_qmix_networks(
     observation_networks = {}
     for key in specs.keys():
         num_dimensions = specs[key].actions.num_values
-        if archecture_type == ArchitectureType.recurrent:
-            network = snt.DeepRNN(
-                [MeltingPotConvNet(), snt.LSTM(128), snt.Linear(num_dimensions)]
-            )
-        else:
-            network = snt.Sequential([MeltingPotConvNet(), snt.Linear(num_dimensions)])
+        network = snt.DeepRNN(
+            [MeltingPotConvNet(), snt.LSTM(128), snt.Linear(num_dimensions)]
+        )
         q_networks[key] = network
         action_selectors[key] = EpsilonGreedy
         observation_networks[key] = tf_utils.to_sonnet_module(tf.identity)

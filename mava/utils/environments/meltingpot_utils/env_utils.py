@@ -31,7 +31,7 @@ except ModuleNotFoundError:
 
 
 class MeltingPotEnvironmentFactory:
-    def __init__(self, substrate: str = None, scenario: str = None, use_global_state=False):
+    def __init__(self, substrate: str = None, scenario: str = None, use_global_state:bool=False):
         """Initializes the env factory object
 
         sets the substrate/scenario using the available ones in meltingpot

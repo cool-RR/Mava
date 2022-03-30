@@ -140,7 +140,7 @@ class MeltingpotEnvWrapper(ParallelEnvWrapper):
         Returns:
             np.ndarray: the global state
         """
-        return self._global_state_fn(self._environment)
+        return self._global_state_fn(self._environment) # type: ignore
 
     def _set_env_image(self) -> None:
         """Sets an image of the environment from a timestep

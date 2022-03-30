@@ -64,9 +64,7 @@ def evaluate_on_scenarios(substrate: str, checkpoint_dir: str) -> None:
     scenarios = scenarios_for_substrate(substrate)
 
     # Networks.
-    network_factory = lp_utils.partial_kwargs(
-        value_decomposition.make_default_networks,
-    )
+    network_factory = lp_utils.partial_kwargs(make_default_qmix_networks)
 
     trained_networks = get_trained_qmix_networks(
         substrate, network_factory, checkpoint_dir
