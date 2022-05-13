@@ -47,6 +47,7 @@ class MCTS:
         env_state,
         observation,
         agent_info,
+        received_message,
     ):
         """TODO: Add description here."""
         # agent_info = EntityId.from_string(agent_info)
@@ -57,25 +58,38 @@ class MCTS:
             env_state,
             observation,
             agent_info,
+            received_message,
         )
         action = jnp.squeeze(search_out.action.astype(jnp.int32))
         search_policy = jnp.squeeze(search_out.action_weights)
+        squeezed_tree: mctx.Tree = apply_fun_tree(jnp.squeeze, search_out.search_tree)
+        _, _, message = forward_fn(
+            params=params,
+            observations=observation,
+            search_tree=squeezed_tree.embeddings.grid,
+            messages=received_message,
+            key=rng_key,
+        )
 
-        return (action, {"search_policies": search_policy})
+        return (
+            action,
+            {
+                "search_policies": search_policy,
+                "search_tree_states": squeezed_tree.embeddings.grid,
+                "message": message,
+                "received_message": received_message,
+            },
+        )
 
     @functools.partial(jit, static_argnames=["self", "forward_fn", "agent_info"])
     def search(
-        self,
-        forward_fn,
-        params,
-        rng_key,
-        env_state,
-        observation,
-        agent_info,
+        self, forward_fn, params, rng_key, env_state, observation, agent_info, message
     ):
         """TODO: Add description here."""
 
-        root = self.config.root_fn(forward_fn, params, rng_key, env_state, observation)
+        root = self.config.root_fn(
+            forward_fn, params, rng_key, env_state, observation, message
+        )
 
         def recurrent_fn(params, rng_key, action, embedding):
 
@@ -87,6 +101,7 @@ class MCTS:
                 action,
                 embedding,
                 agent_info,
+                message,
             )
 
         root_invalid_actions = utils.add_batch_dim(

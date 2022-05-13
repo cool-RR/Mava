@@ -46,11 +46,19 @@ class ExtraSearchPolicySpec(Component):
 
         builder.store.extras_spec = {"policy_info": {}}
 
+        # TODO change specs to be correct
         for agent, spec in agent_specs.items():
             # Make dummy specs
-            builder.store.extras_spec["policy_info"][agent] = jnp.ones(
-                shape=(spec.actions.num_values,), dtype=jnp.float32
-            )
+            builder.store.extras_spec["policy_info"][agent] = {
+                "search_policies": jnp.ones(
+                    shape=(spec.actions.num_values,), dtype=jnp.float32
+                ),
+                "search_tree_states": jnp.ones(
+                    (16, *spec.observations.observation.shape), int
+                ),
+                "message": jnp.ones((1, 10), float),
+                "received_message": jnp.ones((1, 10 * len(agent_specs))),
+            }
 
         # Add the networks keys to extras.
         int_spec = specs.DiscreteArray(len(builder.store.unique_net_keys))

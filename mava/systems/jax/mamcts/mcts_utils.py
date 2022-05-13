@@ -3,16 +3,23 @@ from typing import Callable
 import jax
 import jax.numpy as jnp
 import mctx
-from mctx._src.policies import _mask_invalid_actions
 from acme.jax import utils
+from mctx._src.policies import _mask_invalid_actions
 
 from mava.utils.tree_utils import add_batch_dim_tree, remove_batch_dim_tree, stack_trees
 from mava.wrappers.env_wrappers import EnvironmentModelWrapper
 
 
 def generic_root_fn():
-    def root_fn(forward_fn, params, rng_key, env_state, observation):
-        prior_logits, values = forward_fn(observations=observation, params=params, key=rng_key)
+    def root_fn(forward_fn, params, rng_key, env_state, observation, message):
+        # TODO Change tree and message
+        prior_logits, values, message = forward_fn(
+            observations=observation,
+            search_tree=observation,
+            messages=message,
+            params=params,
+            key=rng_key,
+        )
 
         return mctx.RootFnOutput(
             prior_logits=prior_logits.logits,
@@ -32,6 +39,7 @@ def default_action_recurrent_fn(default_action, discount_gamma=0.99) -> Callable
         action,
         env_state,
         agent_info,
+        message,
     ) -> mctx.RecurrentFnOutput:
         agent_list = environment_model.get_possible_agents()
 
@@ -45,17 +53,31 @@ def default_action_recurrent_fn(default_action, discount_gamma=0.99) -> Callable
 
         observation = environment_model.get_observation(next_state, agent_info)
 
-        prior_logits, values = forward_fn(
-            observations=utils.add_batch_dim(observation), params=params, key=rng_key
+        # TODO Change tree and message
+        prior_logits, values, message = forward_fn(
+            observations=utils.add_batch_dim(observation),
+            search_tree=utils.add_batch_dim(observation),
+            messages=message,
+            params=params,
+            key=rng_key,
         )
 
-        agent_mask = utils.add_batch_dim(environment_model.get_agent_mask(next_state, agent_info))
+        agent_mask = utils.add_batch_dim(
+            environment_model.get_agent_mask(next_state, agent_info)
+        )
 
         prior_logits = _mask_invalid_actions(prior_logits.logits, agent_mask)
 
-        reward = timestep.reward[agent_info].reshape(1,)
+        reward = timestep.reward[agent_info].reshape(
+            1,
+        )
 
-        discount = timestep.discount[agent_info].reshape(1,) * discount_gamma
+        discount = (
+            timestep.discount[agent_info].reshape(
+                1,
+            )
+            * discount_gamma
+        )
 
         return (
             mctx.RecurrentFnOutput(
@@ -106,13 +128,22 @@ def random_action_recurrent_fn(discount_gamma=0.99) -> Callable:
             observations=utils.add_batch_dim(observation), params=params, key=rng_key
         )
 
-        agent_mask = utils.add_batch_dim(environment_model.get_agent_mask(next_state, agent_info))
+        agent_mask = utils.add_batch_dim(
+            environment_model.get_agent_mask(next_state, agent_info)
+        )
 
         prior_logits = _mask_invalid_actions(prior_logits.logits, agent_mask)
 
-        reward = timestep.reward[agent_info].reshape(1,)
+        reward = timestep.reward[agent_info].reshape(
+            1,
+        )
 
-        discount = timestep.discount[agent_info].reshape(1,) * discount_gamma
+        discount = (
+            timestep.discount[agent_info].reshape(
+                1,
+            )
+            * discount_gamma
+        )
 
         return (
             mctx.RecurrentFnOutput(
@@ -147,11 +178,13 @@ def greedy_policy_recurrent_fn(discount_gamma=0.99) -> Callable:
             environment_model.get_observation, in_axes=(None, 0)
         )(env_state, stacked_agents)
 
-        prev_prior_logits, _ = forward_fn(observations=prev_observations, params=params, key=rng_key)
-
-        other_agent_masks = jax.vmap(environment_model.get_agent_mask, in_axes=(None, 0))(
-            env_state, stacked_agents
+        prev_prior_logits, _ = forward_fn(
+            observations=prev_observations, params=params, key=rng_key
         )
+
+        other_agent_masks = jax.vmap(
+            environment_model.get_agent_mask, in_axes=(None, 0)
+        )(env_state, stacked_agents)
 
         prev_prior_logits = jax.vmap(_mask_invalid_actions, in_axes=(0, 0))(
             prev_prior_logits.logits, other_agent_masks
@@ -171,13 +204,22 @@ def greedy_policy_recurrent_fn(discount_gamma=0.99) -> Callable:
             observations=utils.add_batch_dim(observation), params=params, key=rng_key
         )
 
-        agent_mask = utils.add_batch_dim(environment_model.get_agent_mask(next_state, agent_info))
+        agent_mask = utils.add_batch_dim(
+            environment_model.get_agent_mask(next_state, agent_info)
+        )
 
         prior_logits = _mask_invalid_actions(prior_logits.logits, agent_mask)
 
-        reward = timestep.reward[agent_info].reshape(1,)
+        reward = timestep.reward[agent_info].reshape(
+            1,
+        )
 
-        discount = timestep.discount[agent_info].reshape(1,) * discount_gamma
+        discount = (
+            timestep.discount[agent_info].reshape(
+                1,
+            )
+            * discount_gamma
+        )
 
         return (
             mctx.RecurrentFnOutput(

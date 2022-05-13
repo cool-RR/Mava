@@ -275,7 +275,7 @@ class MAMCTSMinibatchUpdate(Utility):
             gradients, agent_metrics = trainer.store.grad_fn(
                 params,
                 minibatch.observations,
-                minibatch.search_policies,
+                minibatch.policy_info,
                 minibatch.target_values,
             )
 
@@ -314,4 +314,3 @@ class MAMCTSMinibatchUpdate(Utility):
     @staticmethod
     def config_class() -> Callable:
         return MAMCTSMinibatchUpdateConfig
-

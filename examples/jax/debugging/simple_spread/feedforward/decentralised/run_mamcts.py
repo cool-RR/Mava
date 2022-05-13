@@ -64,7 +64,7 @@ flags.DEFINE_string(
 flags.DEFINE_string("base_dir", "~/mava", "Base dir to store experiments.")
 
 
-def make_environment(rows=8, cols=8, evaluation: bool = None, num_agents: int = 3):
+def make_environment(rows=8, cols=8, evaluation: bool = None, num_agents: int = 2):
 
     return DebugEnvWrapper(
         DebugEnv(
@@ -132,20 +132,20 @@ def main(_: Any) -> None:
         checkpoint_subpath=checkpoint_subpath,
         optimizer=optimizer,
         run_evaluator=True,
-        sample_batch_size=128,
+        sample_batch_size=16,
         num_minibatches=8,
         num_epochs=4,
-        num_executors=6,
+        num_executors=1,
         multi_process=True,
         root_fn=generic_root_fn(),
-        recurrent_fn=greedy_policy_recurrent_fn(discount_gamma=1.0),
+        recurrent_fn=default_action_recurrent_fn(0, discount_gamma=1.0),
         search=mctx.gumbel_muzero_policy,
         environment_model=environment_factory(),
         num_simulations=15,
         rng_seed=0,
         n_step=10,
         executor_stats_wrapper_class=JAXDetailedEpisodeStatistics,
-        evaluator_stats_wrapper_class=JAXMonitorEnvironmentLoop,
+        # evaluator_stats_wrapper_class=JAXMonitorEnvironmentLoop,
     )
 
     # Launch the system.

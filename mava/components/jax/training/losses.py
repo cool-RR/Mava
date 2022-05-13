@@ -178,7 +178,7 @@ class MAMCTSLoss(Loss):
         def loss_grad_fn(
             params: Any,
             observations: Any,
-            search_policies: Dict[str, jnp.ndarray],
+            policy_info: Dict[str, jnp.ndarray],
             target_values: Dict[str, jnp.ndarray],
         ) -> Tuple[Dict[str, jnp.ndarray], Dict[str, Dict[str, jnp.ndarray]]]:
             """Surrogate loss using clipped probability ratios."""
@@ -194,10 +194,17 @@ class MAMCTSLoss(Loss):
                 def loss_fn(
                     params: Any,
                     observations: Any,
-                    search_policies: jnp.ndarray,
+                    policy_info: jnp.ndarray,
                     target_values: jnp.ndarray,
                 ) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
-                    logits, values = network.network.apply(params, observations)
+
+                    # messages = policy_info[agent_key]["message"]
+                    search_policies = policy_info["search_policies"]
+                    messages = policy_info["message"]
+                    # TODO Change tree and message
+                    (logits, values), message = network.network.apply(
+                        params, observations, observations, messages
+                    )
 
                     policy_loss = jnp.mean(
                         jax.vmap(rlax.categorical_cross_entropy, in_axes=(0, 0))(
@@ -233,7 +240,7 @@ class MAMCTSLoss(Loss):
                 )(
                     params[agent_net_key],
                     observations[agent_key].observation,
-                    search_policies[agent_key],
+                    policy_info[agent_key],
                     target_values[agent_key],
                 )
             return grads, loss_info

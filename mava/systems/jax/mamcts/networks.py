@@ -26,6 +26,7 @@ from acme import specs
 from acme.jax import networks as networks_lib
 from acme.jax import utils
 from dm_env import specs as dm_specs
+from haiku import MultiHeadAttention
 from jax import jit
 
 from mava import specs as mava_specs
@@ -53,33 +54,37 @@ class MAMCTSNetworks:
         def forward_fn(
             params: Dict[str, jnp.ndarray],
             observations: networks_lib.Observation,
-            key: networks_lib.PRNGKey
+            search_tree,
+            messages,
+            key: networks_lib.PRNGKey,
         ) -> Tuple[jnp.ndarray, jnp.ndarray]:
             """TODO: Add description here."""
             # The parameters of the network might change. So it has to
             # be fed into the jitted function.
-            logits, value = self.network.apply(params, observations)
+            (logits, value), message = self.network.apply(
+                params, observations, search_tree, messages
+            )
 
-            return logits, value
+            return logits, value, message
 
         self.forward_fn = forward_fn
 
     def get_logits(self, observations: networks_lib.Observation) -> jnp.ndarray:
         """TODO: Add description here."""
-        logits, _ = self.forward_fn(self.params, observations)
+        logits, _, _ = self.forward_fn(self.params, observations)
 
         return logits
 
     def get_value(self, observations: networks_lib.Observation) -> jnp.ndarray:
         """TODO: Add description here."""
-        _, value = self.forward_fn(self.params, observations)
+        _, value, _ = self.forward_fn(self.params, observations)
         return value
 
     def get_logits_and_value(
         self, observations: networks_lib.Observation
     ) -> Tuple[jnp.ndarray, jnp.ndarray]:
         """TODO: Add description here."""
-        logits, value = self.forward_fn(self.params, observations)
+        logits, value, _ = self.forward_fn(self.params, observations)
         return logits, value
 
 
@@ -112,7 +117,7 @@ def make_networks(
             key=key,
             policy_layer_sizes=policy_layer_sizes,
             critic_layer_sizes=critic_layer_sizes,
-            observation_network=observation_network
+            observation_network=observation_network,
         )
     else:
         raise NotImplementedError(
@@ -128,6 +133,9 @@ def make_discrete_networks(
     policy_layer_sizes: Sequence[int],
     critic_layer_sizes: Sequence[int],
     observation_network=utils.batch_concat,
+    num_heads: int = 1,
+    key_dim=20,
+    message_size=10,
 ) -> MAMCTSNetworks:
     """TODO: Add description here."""
 
@@ -137,7 +145,9 @@ def make_discrete_networks(
     # than having a policy_fn and critic_fn. Maybe jit solves
     # this issue. Having one function makes obs network calculations
     # easier.
-    def forward_fn(inputs: jnp.ndarray) -> networks_lib.FeedForwardNetwork:
+    def forward_fn(
+        observations: jnp.ndarray, search_tree: jnp.ndarray, messages: jnp.ndarray
+    ) -> networks_lib.FeedForwardNetwork:
         policy_value_network = hk.Sequential(
             [
                 observation_network,
@@ -145,16 +155,32 @@ def make_discrete_networks(
                 networks_lib.CategoricalValueHead(num_values=num_actions),
             ]
         )
-        return policy_value_network(inputs)
+
+        attention_network = hk.MultiHeadAttention(
+            num_heads, key_dim, 1.0, model_size=message_size
+        )
+
+        processed_tree = observation_network(search_tree)
+
+        new_message = attention_network(
+            query=messages, key=processed_tree, value=processed_tree
+        )
+
+        return policy_value_network(observations), new_message
 
     # Transform into pure functions.
     forward_fn = hk.without_apply_rng(hk.transform(forward_fn))
-
+    # TODO Change dummys
     dummy_obs = utils.zeros_like(environment_spec.observations.observation)
+    dummy_message = jnp.zeros(key_dim)
+    dummy_tree = utils.zeros_like(environment_spec.observations.observation)
+
     dummy_obs = utils.add_batch_dim(dummy_obs)  # Dummy 'sequence' dim.
+    dummy_message = utils.add_batch_dim(dummy_message)
+    dummy_tree = utils.add_batch_dim(dummy_tree)
 
     network_key, key = jax.random.split(key)
-    params = forward_fn.init(network_key, dummy_obs)  # type: ignore
+    params = forward_fn.init(network_key, dummy_obs, dummy_tree, dummy_message)  # type: ignore
 
     # Create PPONetworks to add functionality required by the agent.
     return make_mcts_network(

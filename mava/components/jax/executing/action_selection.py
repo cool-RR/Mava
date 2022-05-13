@@ -111,6 +111,10 @@ class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
             raise ValueError("Required arguments for MCTS config have not been given")
 
         self.mcts = MCTS(self.config)
+        # TODO change to be correct
+        executor.store.agent_message = {}
+        for agent in executor.store.agent_net_keys.keys():
+            executor.store.agent_message[agent] = jax.numpy.zeros((1, 10))
 
     # TODO figure out how to pass agent ids since it is a string
     # Select action
@@ -129,7 +133,8 @@ class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
         # TODO (dries): We are currently using jit in the networks per agent.
         # We can also try jit over all the agents in a for loop. This would
         # allow the jit function to save us even more time.
-
+        message = jax.numpy.concatenate(list(executor.store.agent_message.values()), -1)
+        # TODO change message to be concat of all other agent messages - remove personal prev message
         executor.store.action_info, executor.store.policy_info = self.mcts.get_action(
             network.forward_fn,
             network.params,
@@ -137,7 +142,10 @@ class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
             executor.store.environment_state,
             observation,
             agent,
+            message,
         )
+
+        executor.store.agent_message[agent] = executor.store.policy_info["message"]
 
     @staticmethod
     def config_class() -> Callable:
