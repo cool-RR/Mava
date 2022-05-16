@@ -236,7 +236,7 @@ class MAMCTSLoss(Loss):
                     )
 
                     agent_messages = message.reshape(
-                        -1, len(trainer.store.trainer_agents) * 10
+                        -1, len(trainer.store.trainer_agents) * 20
                     )
 
                     agent_messages = agent_messages.reshape(
