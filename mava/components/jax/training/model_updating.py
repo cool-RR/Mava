@@ -275,8 +275,10 @@ class MAMCTSMinibatchUpdate(Utility):
             gradients, agent_metrics = trainer.store.grad_fn(
                 params,
                 minibatch.observations,
-                minibatch.policy_info,
+                minibatch.search_policies,
                 minibatch.target_values,
+                minibatch.recieved_messages,
+                minibatch.search_trees,
             )
 
             # Update the networks and optimizors.
@@ -314,3 +316,59 @@ class MAMCTSMinibatchUpdate(Utility):
     @staticmethod
     def config_class() -> Callable:
         return MAMCTSMinibatchUpdateConfig
+
+
+class MAMCTSEpochUpdate(Utility):
+    def __init__(
+        self,
+        config: MAPGEpochUpdateConfig = MAPGEpochUpdateConfig(),
+    ):
+        """_summary_
+
+        Args:
+            config : _description_.
+        """
+        self.config = config
+
+    def on_training_utility_fns(self, trainer: SystemTrainer) -> None:
+        """_summary_"""
+        trainer.store.num_epochs = self.config.num_epochs
+
+        def model_update_epoch(
+            carry: Tuple[KeyArray, Any, optax.OptState, Batch],
+            unused_t: Tuple[()],
+        ) -> Tuple[
+            Tuple[KeyArray, Any, optax.OptState, Batch],
+            Dict[str, jnp.ndarray],
+        ]:
+
+            """Performs model updates based on one epoch of data."""
+            key, params, opt_states, batch = carry
+
+            new_key, subkey = jax.random.split(key)
+
+            (new_params, new_opt_states), metrics = trainer.store.minibatch_update_fn(
+                (params, opt_states), batch
+            )
+
+            return (new_key, new_params, new_opt_states, batch), metrics
+
+        trainer.store.epoch_update_fn = model_update_epoch
+
+    @staticmethod
+    def name() -> str:
+        """_summary_
+
+        Returns:
+            _description_
+        """
+        return "epoch_update_fn"
+
+    @staticmethod
+    def config_class() -> Optional[Callable]:
+        """Config class used for component.
+
+        Returns:
+            config class/dataclass for component.
+        """
+        return MAPGEpochUpdateConfig

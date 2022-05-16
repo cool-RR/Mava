@@ -21,6 +21,7 @@ from typing import Any, Callable, Dict, Optional, Tuple
 import jax
 import jax.numpy as jnp
 import rlax
+from haiku._src.basic import merge_leading_dims
 
 from mava.components.jax.training.base import Loss
 from mava.core_jax import SystemTrainer
@@ -178,8 +179,10 @@ class MAMCTSLoss(Loss):
         def loss_grad_fn(
             params: Any,
             observations: Any,
-            policy_info: Dict[str, jnp.ndarray],
+            search_policies: Dict[str, jnp.ndarray],
             target_values: Dict[str, jnp.ndarray],
+            recieved_messages,
+            search_trees,
         ) -> Tuple[Dict[str, jnp.ndarray], Dict[str, Dict[str, jnp.ndarray]]]:
             """Surrogate loss using clipped probability ratios."""
 
@@ -193,17 +196,74 @@ class MAMCTSLoss(Loss):
                 # the case of non-shared weights.
                 def loss_fn(
                     params: Any,
-                    observations: Any,
-                    policy_info: jnp.ndarray,
+                    observations: jnp.ndarray,
+                    search_policies: jnp.ndarray,
                     target_values: jnp.ndarray,
+                    recieved_messages: jnp.ndarray,
+                    search_trees: jnp.ndarray,
                 ) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
 
-                    # messages = policy_info[agent_key]["message"]
-                    search_policies = policy_info["search_policies"]
-                    messages = policy_info["message"]
-                    # TODO Change tree and message
-                    (logits, values), message = network.network.apply(
-                        params, observations, observations, messages
+                    (
+                        merged_agent_obs,
+                        merged_agent_trees,
+                        merged_agent_recieved_messages,
+                    ) = ([], [], [])
+                    for other_agent_key in trainer.store.trainer_agents:
+                        (
+                            merged_obs,
+                            merged_trees,
+                            merged_recieved_messages,
+                        ) = jax.tree_map(
+                            lambda x: merge_leading_dims(x, 2),
+                            (
+                                observations[other_agent_key].observation,
+                                search_trees[other_agent_key],
+                                recieved_messages[other_agent_key],
+                            ),
+                        )
+                        merged_agent_obs.append(merged_obs)
+                        merged_agent_trees.append(merged_trees)
+                        merged_agent_recieved_messages.append(merged_recieved_messages)
+
+                    merged_obs = jnp.concatenate(merged_agent_obs, 0)
+                    merged_trees = jnp.concatenate(merged_agent_trees, 0)
+                    merged_recieved_messages = jnp.concatenate(
+                        merged_agent_recieved_messages, 0
+                    )
+
+                    (_, _), message = network.network.apply(
+                        params, merged_obs, merged_trees, merged_recieved_messages
+                    )
+
+                    agent_messages = message.reshape(
+                        -1, len(trainer.store.trainer_agents) * 10
+                    )
+
+                    agent_messages = agent_messages.reshape(
+                        *search_trees[agent_key].shape[0:2], *agent_messages.shape[-1:]
+                    )
+                    agent_messages = jax.tree_map(lambda x: x[:, :-1], agent_messages)
+                    agent_messages = jax.tree_map(
+                        lambda x: merge_leading_dims(x, 2), agent_messages
+                    )
+
+                    (
+                        merged_obs,
+                        merged_trees,
+                        search_policies,
+                        target_values,
+                    ) = jax.tree_map(
+                        lambda x: merge_leading_dims(x[:, 1:], 2),
+                        (
+                            observations[agent_key].observation,
+                            search_trees[agent_key],
+                            search_policies,
+                            target_values,
+                        ),
+                    )
+
+                    (logits, values), _ = network.network.apply(
+                        params, merged_obs, merged_trees, agent_messages
                     )
 
                     policy_loss = jnp.mean(
@@ -239,9 +299,11 @@ class MAMCTSLoss(Loss):
                     loss_fn, has_aux=True
                 )(
                     params[agent_net_key],
-                    observations[agent_key].observation,
-                    policy_info[agent_key],
+                    observations,
+                    search_policies[agent_key],
                     target_values[agent_key],
+                    recieved_messages,
+                    search_trees,
                 )
             return grads, loss_info
 

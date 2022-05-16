@@ -27,6 +27,7 @@ from acme.jax import networks as networks_lib
 from acme.jax import utils
 from dm_env import specs as dm_specs
 from haiku import MultiHeadAttention
+from haiku._src.basic import merge_leading_dims
 from jax import jit
 
 from mava import specs as mava_specs
@@ -134,7 +135,7 @@ def make_discrete_networks(
     critic_layer_sizes: Sequence[int],
     observation_network=utils.batch_concat,
     num_heads: int = 1,
-    key_dim=20,
+    key_dim=10,
     message_size=10,
 ) -> MAMCTSNetworks:
     """TODO: Add description here."""
@@ -150,7 +151,6 @@ def make_discrete_networks(
     ) -> networks_lib.FeedForwardNetwork:
         policy_value_network = hk.Sequential(
             [
-                observation_network,
                 hk.nets.MLP(policy_layer_sizes, activation=jax.nn.relu),
                 networks_lib.CategoricalValueHead(num_values=num_actions),
             ]
@@ -159,21 +159,29 @@ def make_discrete_networks(
         attention_network = hk.MultiHeadAttention(
             num_heads, key_dim, 1.0, model_size=message_size
         )
+        search_tree_shape = search_tree.shape
 
-        processed_tree = observation_network(search_tree)
+        search_trees = merge_leading_dims(search_tree, 2)
+        processed_tree = observation_network(search_trees)
+        processed_tree = processed_tree.reshape(*search_tree_shape[0:2], -1)
 
         new_message = attention_network(
-            query=messages, key=processed_tree, value=processed_tree
+            query=jnp.expand_dims(messages, -2),
+            key=processed_tree,
+            value=processed_tree,
         )
 
-        return policy_value_network(observations), new_message
+        obs_out = observation_network(observations)
+        msg_concat = jnp.concatenate([obs_out, messages], -1)
+
+        return policy_value_network(msg_concat), new_message
 
     # Transform into pure functions.
     forward_fn = hk.without_apply_rng(hk.transform(forward_fn))
     # TODO Change dummys
     dummy_obs = utils.zeros_like(environment_spec.observations.observation)
     dummy_message = jnp.zeros(key_dim)
-    dummy_tree = utils.zeros_like(environment_spec.observations.observation)
+    dummy_tree = jnp.zeros((1, *environment_spec.observations.observation.shape))
 
     dummy_obs = utils.add_batch_dim(dummy_obs)  # Dummy 'sequence' dim.
     dummy_message = utils.add_batch_dim(dummy_message)

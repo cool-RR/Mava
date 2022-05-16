@@ -56,8 +56,8 @@ class ExtraSearchPolicySpec(Component):
                 "search_tree_states": jnp.ones(
                     (16, *spec.observations.observation.shape), int
                 ),
-                "message": jnp.ones((1, 10), float),
-                "received_message": jnp.ones((1, 10 * len(agent_specs))),
+                "message": jnp.ones((10), float),
+                "received_message": jnp.ones(10 * len(agent_specs)),
             }
 
         # Add the networks keys to extras.

@@ -22,6 +22,7 @@ from mava.systems.jax import System
 from mava.systems.jax.mamcts.components import ExtraSearchPolicySpec
 from mava.systems.jax.mamcts.config import MAMCTSDefaultConfig
 
+
 class MAMCTSSystem(System):
     def design(self) -> Tuple[DesignSpec, Any]:
         """Mock system design with zero components.
@@ -55,7 +56,7 @@ class MAMCTSSystem(System):
             trainer_init=training.TrainerInit,
             n_step_fn=training.NStepBootStrappedReturns,
             loss=training.MAMCTSLoss,
-            epoch_update=training.MAPGEpochUpdate,
+            epoch_update=training.MAMCTSEpochUpdate,
             minibatch_update=training.MAMCTSMinibatchUpdate,
             sgd_step=training.MAMCTSStep,
             step=training.DefaultStep,

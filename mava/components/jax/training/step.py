@@ -348,13 +348,27 @@ class MAMCTSStep(Step):
             )
 
             policy_info = extra["policy_info"]
+            search_policies = {}
             search_trees = {}
             received_messages = {}
             for agent in policy_info:
+                search_policies[agent] = policy_info[agent]["search_policies"]
                 search_trees[agent] = policy_info[agent]["search_tree_states"]
                 received_messages[agent] = policy_info[agent]["received_message"]
 
             networks = trainer.store.networks["networks"]
+
+            # received_messages = jax.tree_map(
+            #     lambda x: x[:, :-1], received_messages
+            # )
+
+            # search_trees = jax.tree_map(
+            #     lambda x: x[:, 1:], search_trees
+            # )
+
+            # observations, rewards, discounts, search_policies = jax.tree_map(
+            #     lambda x: x[:, 1:], (observations, rewards, discounts, search_policies)
+            # )
 
             def get_bootstrap_values(
                 net_key: Any,
@@ -367,7 +381,7 @@ class MAMCTSStep(Step):
                     lambda x: merge_leading_dims(x, 2),
                     (observation, search_trees, received_messages),
                 )
-                # TODO Change tree and message
+
                 (_, bootstrap_values), _ = networks[net_key].network.apply(
                     states.params[net_key],
                     merged_obs,
@@ -396,11 +410,25 @@ class MAMCTSStep(Step):
             )
 
             # TODO (Edan) check correctness - maybe dont remove last reward but add a zero to the end of bootstrapped values
-
-            observations, policy_info, rewards, discounts = jax.tree_map(
-                lambda x: x[:, :-1], (observations, policy_info, rewards, discounts)
-            )
             bootstrap_values = jax.tree_map(lambda x: x[:, 1:], bootstrap_values)
+            (
+                observations,
+                rewards,
+                discounts,
+                search_policies,
+                search_trees,
+                received_messages,
+            ) = jax.tree_map(
+                lambda x: x[:, :-1],
+                (
+                    observations,
+                    rewards,
+                    discounts,
+                    search_policies,
+                    search_trees,
+                    received_messages,
+                ),
+            )
 
             target_values = {}
             for key in rewards.keys():
@@ -414,29 +442,18 @@ class MAMCTSStep(Step):
 
             trajectories = MCTSBatch(
                 observations=observations,
-                policy_info=policy_info,
+                search_policies=search_policies,
                 target_values=target_values,
+                recieved_messages=received_messages,
+                search_trees=search_trees,
             )
 
-            # Concatenate all trajectories. Reshape from [num_sequences, num_steps,..]
-            # to [num_sequences * num_steps,..]
             agent_0_t_vals = list(target_values.values())[0]
             assert len(agent_0_t_vals) > 1
-            num_sequences = agent_0_t_vals.shape[0]
-            num_steps = agent_0_t_vals.shape[1]
-            batch_size = num_sequences * num_steps
-            assert batch_size % trainer.store.num_minibatches == 0, (
-                "Num minibatches must divide batch size. Got batch_size={}"
-                " num_minibatches={}."
-            ).format(batch_size, trainer.store.num_minibatches)
-
-            batch = jax.tree_map(
-                lambda x: x.reshape((batch_size,) + x.shape[2:]), trajectories
-            )
 
             (new_key, new_params, new_opt_states, _,), metrics = jax.lax.scan(
                 trainer.store.epoch_update_fn,
-                (states.random_key, states.params, states.opt_states, batch),
+                (states.random_key, states.params, states.opt_states, trajectories),
                 (),
                 length=trainer.store.num_epochs,
             )

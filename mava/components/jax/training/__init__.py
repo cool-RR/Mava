@@ -21,6 +21,7 @@ from mava.components.jax.training.losses import (
     MAPGWithTrustRegionClippingLoss,
 )
 from mava.components.jax.training.model_updating import (
+    MAMCTSEpochUpdate,
     MAMCTSMinibatchUpdate,
     MAPGEpochUpdate,
     MAPGMinibatchUpdate,

@@ -43,8 +43,10 @@ class MCTSBatch(NamedTuple):
     """A batch of data; all shapes are expected to be [B, ...]."""
 
     observations: Any
-    policy_info: Any
+    search_policies: Any
     target_values: Any
+    recieved_messages: Any
+    search_trees: Any
 
 
 class TrainingState(NamedTuple):

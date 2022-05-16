@@ -114,7 +114,7 @@ class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
         # TODO change to be correct
         executor.store.agent_message = {}
         for agent in executor.store.agent_net_keys.keys():
-            executor.store.agent_message[agent] = jax.numpy.zeros((1, 10))
+            executor.store.agent_message[agent] = jax.numpy.zeros(10)
 
     # TODO figure out how to pass agent ids since it is a string
     # Select action

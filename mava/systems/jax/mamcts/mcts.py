@@ -66,8 +66,8 @@ class MCTS:
         _, _, message = forward_fn(
             params=params,
             observations=observation,
-            search_tree=squeezed_tree.embeddings.grid,
-            messages=received_message,
+            search_tree=search_out.search_tree.embeddings.grid,
+            messages=utils.add_batch_dim(received_message),
             key=rng_key,
         )
 
@@ -75,9 +75,9 @@ class MCTS:
             action,
             {
                 "search_policies": search_policy,
-                "search_tree_states": squeezed_tree.embeddings.grid,
-                "message": message,
-                "received_message": received_message,
+                "search_tree_states": jnp.squeeze(squeezed_tree.embeddings.grid),
+                "message": jnp.squeeze(message),
+                "received_message": jnp.squeeze(received_message),
             },
         )
 

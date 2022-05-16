@@ -64,7 +64,7 @@ flags.DEFINE_string(
 flags.DEFINE_string("base_dir", "~/mava", "Base dir to store experiments.")
 
 
-def make_environment(rows=8, cols=8, evaluation: bool = None, num_agents: int = 2):
+def make_environment(rows=8, cols=8, evaluation: bool = None, num_agents: int = 1):
 
     return DebugEnvWrapper(
         DebugEnv(
@@ -133,9 +133,9 @@ def main(_: Any) -> None:
         optimizer=optimizer,
         run_evaluator=True,
         sample_batch_size=16,
-        num_minibatches=8,
-        num_epochs=4,
-        num_executors=1,
+        # num_minibatches=8,
+        num_epochs=1,
+        num_executors=6,
         multi_process=True,
         root_fn=generic_root_fn(),
         recurrent_fn=default_action_recurrent_fn(0, discount_gamma=1.0),
