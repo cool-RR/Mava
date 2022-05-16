@@ -47,7 +47,7 @@ class FeedforwardExecutorObserve(Component):
         if not executor.store.adder:
             return
 
-        "Select new networks from the sampler at the start of each episode."
+        # Select new networks from the sampler at the start of each episode.
         agents = sort_str_num(list(executor.store.agent_net_keys.keys()))
         (
             executor.store.network_int_keys_extras,
