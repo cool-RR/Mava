@@ -134,8 +134,8 @@ def make_discrete_networks(
     policy_layer_sizes: Sequence[int],
     critic_layer_sizes: Sequence[int],
     observation_network=utils.batch_concat,
-    num_heads: int = 1,
-    key_dim=10,
+    num_heads: int = 8,
+    key_dim=20,
     message_size=10,
 ) -> MAMCTSNetworks:
     """TODO: Add description here."""

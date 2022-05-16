@@ -64,7 +64,7 @@ flags.DEFINE_string(
 flags.DEFINE_string("base_dir", "~/mava", "Base dir to store experiments.")
 
 
-def make_environment(rows=8, cols=8, evaluation: bool = None, num_agents: int = 1):
+def make_environment(rows=6, cols=6, evaluation: bool = None, num_agents: int = 2):
 
     return DebugEnvWrapper(
         DebugEnv(
@@ -118,7 +118,7 @@ def main(_: Any) -> None:
 
     # Optimizer.
     optimizer = optax.chain(
-        optax.clip_by_global_norm(40.0), optax.scale_by_adam(), optax.scale(-1e-3)
+        optax.clip_by_global_norm(40.0), optax.scale_by_adam(), optax.scale(-1e-2)
     )
 
     # Create the system.
