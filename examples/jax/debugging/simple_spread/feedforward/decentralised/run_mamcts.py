@@ -132,7 +132,7 @@ def main(_: Any) -> None:
         checkpoint_subpath=checkpoint_subpath,
         optimizer=optimizer,
         run_evaluator=True,
-        sample_batch_size=128,
+        sample_batch_size=16,
         num_minibatches=8,
         num_epochs=4,
         num_executors=6,
@@ -145,7 +145,7 @@ def main(_: Any) -> None:
         rng_seed=0,
         n_step=10,
         executor_stats_wrapper_class=JAXDetailedEpisodeStatistics,
-        evaluator_stats_wrapper_class=JAXMonitorEnvironmentLoop,
+        # evaluator_stats_wrapper_class=JAXMonitorEnvironmentLoop,
     )
 
     # Launch the system.

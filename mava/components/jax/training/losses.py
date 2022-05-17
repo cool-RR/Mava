@@ -185,57 +185,81 @@ class MAMCTSLoss(Loss):
 
             grads = {}
             loss_info = {}
-            for agent_key in trainer.store.trainer_agents:
-                agent_net_key = trainer.store.trainer_agent_net_keys[agent_key]
-                network = trainer.store.networks["networks"][agent_net_key]
 
-                # Note (dries): This is placed here to set the networks correctly in
-                # the case of non-shared weights.
-                def loss_fn(
-                    params: Any,
-                    observations: Any,
-                    search_policies: jnp.ndarray,
-                    target_values: jnp.ndarray,
-                ) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
-                    logits, values = network.network.apply(params, observations)
+            def loss_fn(
+                params: Any,
+                observations: Any,
+                search_policies: jnp.ndarray,
+                target_values: jnp.ndarray,
+            ) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
+                policy_loss = jnp.float32(0)
+                l2_regularisation = jnp.float32(0)
 
-                    policy_loss = jnp.mean(
+                predicted_global_value = None
+                global_target_value = None
+
+                for agent_key in trainer.store.trainer_agents:
+                    agent_net_key = trainer.store.trainer_agent_net_keys[agent_key]
+                    network = trainer.store.networks["networks"][agent_net_key]
+
+                    logits, values = network.network.apply(
+                        params[agent_net_key], observations[agent_key].observation
+                    )
+
+                    if predicted_global_value is None:
+                        predicted_global_value = values
+                    else:
+                        predicted_global_value += values
+
+                    if global_target_value is None:
+                        global_target_value = target_values[agent_key]
+                    else:
+                        global_target_value += target_values[agent_key]
+
+                    policy_loss += jnp.mean(
                         jax.vmap(rlax.categorical_cross_entropy, in_axes=(0, 0))(
-                            search_policies, logits.logits
+                            search_policies[agent_key], logits.logits
                         )
                     )
 
-                    value_loss = jnp.mean(rlax.l2_loss(values, target_values))
-
                     # Entropy regulariser.
-                    l2_regularisation = sum(
+                    l2_regularisation += sum(
                         jnp.sum(jnp.square(parameter))
-                        for parameter in jax.tree_leaves(params)
+                        for parameter in jax.tree_leaves(params[agent_net_key])
                     )
 
-                    total_loss = (
-                        policy_loss
-                        + value_loss * self.config.value_cost
-                        + l2_regularisation * self.config.L2_regularisation_coeff
-                    )
-
-                    loss_info = {
-                        "loss_total": total_loss,
-                        "loss_policy": policy_loss,
-                        "loss_value": value_loss,
-                        "loss_regularisation_term": l2_regularisation,
-                    }
-
-                    return total_loss, loss_info
-
-                grads[agent_key], loss_info[agent_key] = jax.grad(
-                    loss_fn, has_aux=True
-                )(
-                    params[agent_net_key],
-                    observations[agent_key].observation,
-                    search_policies[agent_key],
-                    target_values[agent_key],
+                value_loss = jnp.mean(
+                    rlax.l2_loss(predicted_global_value, global_target_value)
                 )
+
+                total_loss = (
+                    policy_loss
+                    + value_loss * self.config.value_cost
+                    + l2_regularisation * self.config.L2_regularisation_coeff
+                )
+
+                loss_info = {
+                    "loss_total": total_loss,
+                    "loss_policy": policy_loss,
+                    "loss_value": value_loss,
+                    "loss_regularisation_term": l2_regularisation,
+                }
+
+                return total_loss, loss_info
+
+            shared_gradient, shared_loss_info = jax.grad(loss_fn, has_aux=True)(
+                params,
+                observations,
+                search_policies,
+                target_values,
+            )
+
+            for agent_key in trainer.store.trainer_agents:
+                grads[agent_key], loss_info[agent_key] = (
+                    shared_gradient,
+                    shared_loss_info,
+                )
+
             return grads, loss_info
 
         # Save the gradient funciton.
