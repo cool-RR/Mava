@@ -281,23 +281,22 @@ class MAMCTSMinibatchUpdate(Utility):
 
             # Update the networks and optimizors.
             metrics = {}
-            for agent_key in trainer.store.trainer_agents:
-                agent_net_key = trainer.store.trainer_agent_net_keys[agent_key]
-                # Apply updates
-                # TODO (dries): Use one optimizer per network type here and not
-                # just one.
-                updates, opt_states[agent_net_key] = trainer.store.optimizer.update(
-                    gradients[agent_key], opt_states[agent_net_key]
-                )
-                params[agent_net_key] = optax.apply_updates(
-                    params[agent_net_key], updates
-                )
+            agent_key = "type-0-id-0"
+            agent_net_key = trainer.store.trainer_agent_net_keys[agent_key]
+            # Apply updates
+            # TODO (dries): Use one optimizer per network type here and not
+            # just one.
+            updates, opt_states[agent_net_key] = trainer.store.optimizer.update(
+                gradients[agent_key], opt_states[agent_net_key]
+            )
+            params[agent_net_key] = optax.apply_updates(params[agent_net_key], updates)
 
-                agent_metrics[agent_key]["norm_grad"] = optax.global_norm(
-                    gradients[agent_key]
-                )
-                agent_metrics[agent_key]["norm_updates"] = optax.global_norm(updates)
-                metrics[agent_key] = agent_metrics
+            agent_metrics[agent_key]["norm_grad"] = optax.global_norm(
+                gradients[agent_key]
+            )
+            agent_metrics[agent_key]["norm_updates"] = optax.global_norm(updates)
+            metrics[agent_key] = agent_metrics
+
             return (params, opt_states), metrics
 
         trainer.store.minibatch_update_fn = model_update_minibatch
@@ -314,4 +313,3 @@ class MAMCTSMinibatchUpdate(Utility):
     @staticmethod
     def config_class() -> Callable:
         return MAMCTSMinibatchUpdateConfig
-

@@ -253,10 +253,11 @@ class MAMCTSLoss(Loss):
                 search_policies,
                 target_values,
             )
-            print(shared_gradient)
+
             for agent_key in trainer.store.trainer_agents:
+                agent_net_key = trainer.store.trainer_agent_net_keys[agent_key]
                 grads[agent_key], loss_info[agent_key] = (
-                    shared_gradient,
+                    shared_gradient[agent_net_key],
                     shared_loss_info,
                 )
 
