@@ -21,8 +21,8 @@ from typing import Any
 import optax
 from absl import app, flags
 
-from mava.systems.jax import hrl
-from mava.systems.jax import mappo
+from mava.systems.jax import hrl, mappo
+from mava.systems.jax.hrl.dummy_env import DummyEnv
 from mava.utils.environments import debugging_utils
 from mava.utils.loggers import logger_utils
 
@@ -52,12 +52,9 @@ def main(_: Any) -> None:
     Args:
         _ : _
     """
-    # Environment.
-    environment_factory = functools.partial(
-        debugging_utils.make_environment,
-        env_name=FLAGS.env_name,
-        action_space=FLAGS.action_space,
-    )
+
+    def make_env(**kwargs):
+        return DummyEnv()
 
     # Networks.
     def network_factory(*args: Any, **kwargs: Any) -> Any:
@@ -86,13 +83,12 @@ def main(_: Any) -> None:
     optimizer = optax.chain(
         optax.clip_by_global_norm(40.0), optax.scale_by_adam(), optax.scale(-1e-4)
     )
-
+    print("RUN HRL")
     # Create the system.
     system = hrl.HrlSystem()
-
     # Build the system.
     system.build(
-        environment_factory=environment_factory,
+        environment_factory=make_env,
         network_factory=network_factory,
         logger_factory=logger_factory,
         checkpoint_subpath=checkpoint_subpath,

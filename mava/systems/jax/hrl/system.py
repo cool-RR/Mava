@@ -14,14 +14,18 @@
 # limitations under the License.
 
 """Jax Hrl system."""
+import copy
 from typing import Any, Tuple
 
 from mava.components.jax import building, executing, training, updating
 from mava.specs import DesignSpec
 from mava.systems.jax import System
+from mava.systems.jax.hrl.adder import HrlParallelSequenceAdder
+from mava.systems.jax.hrl.builder import HrlBuilder
+from mava.systems.jax.hrl.hrl_distributor import HrlDistributor
 from mava.systems.jax.mappo.components import ExtrasLogProbSpec
 from mava.systems.jax.mappo.config import MAPPODefaultConfig
-from mava.systems.jax.hrl.hrl_distributor import HrlDistributor
+
 
 class HrlSystem(System):
     def design(self) -> Tuple[DesignSpec, Any]:
@@ -30,11 +34,14 @@ class HrlSystem(System):
         Returns:
             system callback components
         """
+        print("HELLO TOP OF DESIGN")
+
         # Set the default configs
         default_params = MAPPODefaultConfig()
 
         # Default system processes
         # System initialization
+        # TODO change to hl env spec
         system_init = DesignSpec(
             environment_spec=building.EnvironmentSpec, system_init=building.SystemInit
         ).get()
@@ -44,7 +51,7 @@ class HrlSystem(System):
             executor_init=executing.ExecutorInit,
             executor_observe=executing.FeedforwardExecutorObserve,
             executor_select_action=executing.FeedforwardExecutorSelectAction,
-            executor_adder=building.ParallelSequenceAdder,
+            executor_adder=HrlParallelSequenceAdder,
             executor_environment_loop=building.ParallelExecutorEnvironmentLoop,
             networks=building.DefaultNetworks,
         ).get()
@@ -85,3 +92,33 @@ class HrlSystem(System):
             logger=building.Logger,
         )
         return system, default_params
+
+    def build(self, **kwargs: Any) -> None:
+        """Configure system hyperparameters."""
+
+        if self._built:
+            raise Exception("System already built.")
+
+        # Add the system defaults, but allow the kwargs to overwrite them.
+        if self._default_params:
+            parameter = copy.copy(self._default_params.__dict__)
+        else:
+            parameter = {}
+        parameter.update(kwargs)
+
+        self.config.build()
+
+        self.config.set_parameters(**parameter)
+
+        # get system config to feed to component list to update hyperparameter settings
+        system_config = self.config.get()
+
+        # update default system component configs
+        assert len(self.components) == 0
+        for component in self._design.get().values():
+            self.components.append(component(system_config))
+
+        # Build system
+        self._builder = HrlBuilder(components=self.components)
+        self._builder.build()
+        self._built = True

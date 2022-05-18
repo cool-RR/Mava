@@ -11,6 +11,8 @@ class HrlDistributor(Distributor):
         Args:
             builder : _description_
         """
+        print("TYPE BUILDER!!!!", type(builder))
+
         builder.store.program = Launcher(
             multi_process=self.config.multi_process,
             nodes_on_gpu=self.config.nodes_on_gpu,
