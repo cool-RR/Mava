@@ -300,7 +300,6 @@ class MAPGWithTrustRegionStep(Step):
         return MAPGWithTrustRegionStepConfig
 
 
-
 @dataclass
 class MAMCTSStepConfig:
     discount: float = 0.99
@@ -323,7 +322,7 @@ class MAMCTSStep(Step):
         trainer.store.full_batch_size = trainer.store.sample_batch_size * (
             trainer.store.sequence_length - 1
         )
-    
+
     def on_training_step_fn(self, trainer: SystemTrainer) -> None:
         """_summary_"""
 
@@ -360,7 +359,7 @@ class MAMCTSStep(Step):
                     lambda x: merge_leading_dims(x, 2), observation
                 )
 
-                _, bootstrap_values = networks[net_key].network.apply(
+                (_, bootstrap_values), _ = networks[net_key].network.apply(
                     states.params[net_key], merged_obs
                 )
 
@@ -382,8 +381,9 @@ class MAMCTSStep(Step):
 
             # TODO (Edan) check correctness - maybe dont remove last reward but add a zero to the end of bootstrapped values
 
-            observations, search_policies, rewards, discounts = jax.tree_map(
-                lambda x: x[:, :-1], (observations, search_policies, rewards, discounts)
+            observations, search_policies, rewards, discounts, actions = jax.tree_map(
+                lambda x: x[:, :-1],
+                (observations, search_policies, rewards, discounts, actions),
             )
             bootstrap_values = jax.tree_map(lambda x: x[:, 1:], bootstrap_values)
 
@@ -401,6 +401,7 @@ class MAMCTSStep(Step):
                 observations=observations,
                 search_policies=search_policies,
                 target_values=target_values,
+                actions=actions,
             )
 
             # Concatenate all trajectories. Reshape from [num_sequences, num_steps,..]

@@ -277,6 +277,7 @@ class MAMCTSMinibatchUpdate(Utility):
                 minibatch.observations,
                 minibatch.search_policies,
                 minibatch.target_values,
+                minibatch.actions,
             )
 
             # Update the networks and optimizors.
@@ -314,4 +315,3 @@ class MAMCTSMinibatchUpdate(Utility):
     @staticmethod
     def config_class() -> Callable:
         return MAMCTSMinibatchUpdateConfig
-

@@ -180,6 +180,7 @@ class MAMCTSLoss(Loss):
             observations: Any,
             search_policies: Dict[str, jnp.ndarray],
             target_values: Dict[str, jnp.ndarray],
+            actions,
         ) -> Tuple[Dict[str, jnp.ndarray], Dict[str, Dict[str, jnp.ndarray]]]:
             """Surrogate loss using clipped probability ratios."""
 
@@ -196,12 +197,21 @@ class MAMCTSLoss(Loss):
                     observations: Any,
                     search_policies: jnp.ndarray,
                     target_values: jnp.ndarray,
+                    actions,
                 ) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
-                    logits, values = network.network.apply(params, observations)
+                    (logits, values), tree_logits = network.network.apply(
+                        params, observations
+                    )
 
                     policy_loss = jnp.mean(
                         jax.vmap(rlax.categorical_cross_entropy, in_axes=(0, 0))(
                             search_policies, logits.logits
+                        )
+                    )
+                    tree_policy_loss = jnp.mean(
+                        jax.vmap(rlax.categorical_cross_entropy, in_axes=(0, 0))(
+                            jnp.zeros_like(tree_logits.logits).at[actions].set(1),
+                            tree_logits.logits,
                         )
                     )
 
@@ -217,6 +227,7 @@ class MAMCTSLoss(Loss):
                         policy_loss
                         + value_loss * self.config.value_cost
                         + l2_regularisation * self.config.L2_regularisation_coeff
+                        + tree_policy_loss
                     )
 
                     loss_info = {
@@ -235,6 +246,7 @@ class MAMCTSLoss(Loss):
                     observations[agent_key].observation,
                     search_policies[agent_key],
                     target_values[agent_key],
+                    actions[agent_key],
                 )
             return grads, loss_info
 

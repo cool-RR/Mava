@@ -53,14 +53,14 @@ class MAMCTSNetworks:
         def forward_fn(
             params: Dict[str, jnp.ndarray],
             observations: networks_lib.Observation,
-            key: networks_lib.PRNGKey
+            key: networks_lib.PRNGKey,
         ) -> Tuple[jnp.ndarray, jnp.ndarray]:
             """TODO: Add description here."""
             # The parameters of the network might change. So it has to
             # be fed into the jitted function.
-            logits, value = self.network.apply(params, observations)
+            (logits, value), other_logits = self.network.apply(params, observations)
 
-            return logits, value
+            return logits, value, other_logits
 
         self.forward_fn = forward_fn
 
@@ -112,7 +112,7 @@ def make_networks(
             key=key,
             policy_layer_sizes=policy_layer_sizes,
             critic_layer_sizes=critic_layer_sizes,
-            observation_network=observation_network
+            observation_network=observation_network,
         )
     else:
         raise NotImplementedError(
@@ -138,14 +138,23 @@ def make_discrete_networks(
     # this issue. Having one function makes obs network calculations
     # easier.
     def forward_fn(inputs: jnp.ndarray) -> networks_lib.FeedForwardNetwork:
+
+        proc_obs = observation_network(inputs)
+
         policy_value_network = hk.Sequential(
             [
-                observation_network,
                 hk.nets.MLP(policy_layer_sizes, activation=jax.nn.relu),
                 networks_lib.CategoricalValueHead(num_values=num_actions),
             ]
         )
-        return policy_value_network(inputs)
+        tree_policy_network = hk.Sequential(
+            [
+                hk.nets.MLP(policy_layer_sizes, activation=jax.nn.relu),
+                networks_lib.CategoricalHead(num_values=num_actions),
+            ]
+        )
+
+        return policy_value_network(proc_obs), tree_policy_network(proc_obs)
 
     # Transform into pure functions.
     forward_fn = hk.without_apply_rng(hk.transform(forward_fn))
