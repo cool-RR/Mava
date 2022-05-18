@@ -84,12 +84,18 @@ class DummyEnv(ParallelEnvWrapper):
         }
 
     def reward_spec(self):
-        return {agent: specs.Array((), np.float32) for agent in self.possible_agents}
+        return {
+            key: {agent: specs.Array((), np.float32) for agent in self.possible_agents}
+            for key in ["hl", "ll"]
+        }
 
     def discount_spec(self):
         return {
-            agent: specs.BoundedArray((), np.float32, minimum=0, maximum=1.0)
-            for agent in self.possible_agents
+            key: {
+                agent: specs.BoundedArray((), np.float32, minimum=0, maximum=1.0)
+                for agent in self.possible_agents
+            }
+            for key in ["hl", "ll"]
         }
 
     def extra_spec(self):

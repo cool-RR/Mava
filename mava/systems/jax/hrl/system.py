@@ -23,6 +23,7 @@ from mava.systems.jax import System
 from mava.systems.jax.hrl.adder import HrlParallelSequenceAdder
 from mava.systems.jax.hrl.builder import HrlBuilder
 from mava.systems.jax.hrl.hrl_distributor import HrlDistributor
+from mava.systems.jax.hrl.hrl_env_spec import HrlEnvironmentSpec
 from mava.systems.jax.mappo.components import ExtrasLogProbSpec
 from mava.systems.jax.mappo.config import MAPPODefaultConfig
 
@@ -43,7 +44,7 @@ class HrlSystem(System):
         # System initialization
         # TODO change to hl env spec
         system_init = DesignSpec(
-            environment_spec=building.EnvironmentSpec, system_init=building.SystemInit
+            environment_spec=HrlEnvironmentSpec, system_init=building.SystemInit
         ).get()
 
         # Executor
