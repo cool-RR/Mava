@@ -11,8 +11,17 @@ from mava.wrappers.env_wrappers import EnvironmentModelWrapper
 
 
 def generic_root_fn():
+    """A simple root_fn to generate a root state's prior probabilities and value
+
+    Return:
+        Callable function used by the MCTS component"""
+
     def root_fn(forward_fn, params, rng_key, env_state, observation):
+<<<<<<< HEAD
         prior_logits, values, _ = forward_fn(
+=======
+        prior_logits, values = forward_fn(
+>>>>>>> feature/jax-mamcts-system
             observations=observation, params=params, key=rng_key
         )
 
@@ -26,6 +35,9 @@ def generic_root_fn():
 
 
 def default_action_recurrent_fn(default_action, discount_gamma=0.99) -> Callable:
+    """Creates a recurrent function used by the MCTS component - this setting makes
+    other agents all select a default action in an individual agents tree search"""
+
     def recurrent_fn(
         environment_model: EnvironmentModelWrapper,
         forward_fn,
@@ -82,6 +94,9 @@ def default_action_recurrent_fn(default_action, discount_gamma=0.99) -> Callable
 
 
 def random_action_recurrent_fn(discount_gamma=0.99) -> Callable:
+    """Creates a recurrent function used by the MCTS component - this setting makes
+    other agents all select random actions in an individual agents tree search"""
+
     def recurrent_fn(
         environment_model: EnvironmentModelWrapper,
         forward_fn,
@@ -148,6 +163,9 @@ def random_action_recurrent_fn(discount_gamma=0.99) -> Callable:
 
 
 def greedy_policy_recurrent_fn(discount_gamma=0.99) -> Callable:
+    """Creates a recurrent function used by the MCTS component - this setting makes
+    other agents all select the greedy action, according to the searching agent's policy, in an individual agents tree search"""
+
     def recurrent_fn(
         environment_model: EnvironmentModelWrapper,
         forward_fn,
@@ -167,7 +185,11 @@ def greedy_policy_recurrent_fn(discount_gamma=0.99) -> Callable:
             environment_model.get_observation, in_axes=(None, 0)
         )(env_state, stacked_agents)
 
+<<<<<<< HEAD
         _, _, prev_prior_logits = forward_fn(
+=======
+        prev_prior_logits, _ = forward_fn(
+>>>>>>> feature/jax-mamcts-system
             observations=prev_observations, params=params, key=rng_key
         )
 

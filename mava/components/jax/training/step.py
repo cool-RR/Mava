@@ -301,8 +301,8 @@ class MAPGWithTrustRegionStep(Step):
 
 
 @dataclass
-class MAMCTSStepConfig:
-    discount: float = 0.99
+class MAMCTSStepConfig(MAPGWithTrustRegionStepConfig):
+    pass
 
 
 class MAMCTSStep(Step):
@@ -320,7 +320,7 @@ class MAMCTSStep(Step):
     def on_training_init_start(self, trainer: SystemTrainer) -> None:
         # Note (dries): Assuming the batch and sequence dimensions are flattened.
         trainer.store.full_batch_size = trainer.store.sample_batch_size * (
-            trainer.store.sequence_length - 1
+            trainer.store.sequence_length
         )
 
     def on_training_step_fn(self, trainer: SystemTrainer) -> None:
@@ -335,7 +335,7 @@ class MAMCTSStep(Step):
             # Extract the data.
             data = sample.data
 
-            observations, actions, rewards, termination, extra = (
+            observations, _, rewards, termination, extra = (
                 data.observations,
                 data.actions,
                 data.rewards,
@@ -351,7 +351,6 @@ class MAMCTSStep(Step):
 
             networks = trainer.store.networks["networks"]
 
-            # TODO shift obs by 1
             def get_bootstrap_values(
                 net_key: Any, reward: Any, observation: Any
             ) -> jnp.ndarray:
@@ -379,13 +378,11 @@ class MAMCTSStep(Step):
                 trainer.store.n_step_fn, in_axes=(0, 0, 0, None, None)
             )
 
-            # TODO (Edan) check correctness - maybe dont remove last reward but add a zero to the end of bootstrapped values
-
-            observations, search_policies, rewards, discounts, actions = jax.tree_map(
-                lambda x: x[:, :-1],
-                (observations, search_policies, rewards, discounts, actions),
-            )
-            bootstrap_values = jax.tree_map(lambda x: x[:, 1:], bootstrap_values)
+            zeros = jnp.zeros_like(list(bootstrap_values.values())[0])
+            # Shift the bootstrapping values up by one
+            bootstrap_values = jax.tree_map(lambda x: jnp.concatenate([x[:,1:],jnp.expand_dims(zeros[:,-1],-1)],-1), bootstrap_values)
+            
+           
 
             target_values = {}
             for key in rewards.keys():

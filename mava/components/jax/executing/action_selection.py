@@ -97,6 +97,8 @@ class MCTSConfig:
 
 
 class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
+    """MCTS action selection"""
+
     def __init__(
         self,
         config: MCTSConfig = MCTSConfig(),
@@ -129,10 +131,6 @@ class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
 
         observation = utils.add_batch_dim(executor.store.observation.observation)
 
-        # TODO (dries): We are currently using jit in the networks per agent.
-        # We can also try jit over all the agents in a for loop. This would
-        # allow the jit function to save us even more time.
-        is_evaluator = executor.store.executor_id == "evaluator"
         executor.store.action_info, executor.store.policy_info = self.mcts.get_action(
             network.forward_fn,
             network.params,
@@ -140,7 +138,7 @@ class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
             executor.store.environment_state,
             observation,
             agent,
-            is_evaluator,
+            executor.store.is_evaluator,
         )
 
     @staticmethod
