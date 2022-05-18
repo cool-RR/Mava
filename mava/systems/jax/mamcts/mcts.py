@@ -4,6 +4,7 @@ from typing import Any, Callable, Optional, Tuple, Union
 
 import acme.jax.utils as utils
 import chex
+import jax
 import jax.numpy as jnp
 import mctx
 import numpy as np
@@ -48,8 +49,21 @@ class MCTS:
         observation,
         agent_info,
         received_message,
+        is_evaluator,
     ):
         """TODO: Add description here."""
+
+        num_simulations = (
+            self.config.evaluator_num_simulations
+            if is_evaluator
+            else self.config.num_simulations
+        )
+        search_kwargs = (
+            self.config.evaluator_other_search_params()
+            if is_evaluator
+            else self.config.other_search_params()
+        )
+
         # agent_info = EntityId.from_string(agent_info)
         search_out = self.search(
             forward_fn,
@@ -59,6 +73,8 @@ class MCTS:
             observation,
             agent_info,
             received_message,
+            num_simulations,
+            **search_kwargs,
         )
         action = jnp.squeeze(search_out.action.astype(jnp.int32))
         search_policy = jnp.squeeze(search_out.action_weights)
@@ -81,9 +97,27 @@ class MCTS:
             },
         )
 
-    @functools.partial(jit, static_argnames=["self", "forward_fn", "agent_info"])
+    @functools.partial(
+        jit,
+        static_argnames=[
+            "self",
+            "forward_fn",
+            "agent_info",
+            "num_simulations",
+            "search_kwargs",
+        ],
+    )
     def search(
-        self, forward_fn, params, rng_key, env_state, observation, agent_info, message
+        self,
+        forward_fn,
+        params,
+        rng_key,
+        env_state,
+        observation,
+        agent_info,
+        message,
+        num_simulations,
+        **search_kwargs,
     ):
         """TODO: Add description here."""
 
@@ -113,9 +147,10 @@ class MCTS:
             rng_key=rng_key,
             root=root,
             recurrent_fn=recurrent_fn,
-            num_simulations=self.config.num_simulations,
+            num_simulations=num_simulations,
             invalid_actions=root_invalid_actions,
             max_depth=self.config.max_depth,
+            **search_kwargs,
         )
 
         return search_output
