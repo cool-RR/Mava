@@ -335,7 +335,7 @@ class MAMCTSStep(Step):
             # Extract the data.
             data = sample.data
 
-            observations, _, rewards, termination, extra = (
+            observations, actions, rewards, termination, extra = (
                 data.observations,
                 data.actions,
                 data.rewards,
@@ -379,10 +379,13 @@ class MAMCTSStep(Step):
             )
 
             zeros = jnp.zeros_like(list(bootstrap_values.values())[0])
-            # Shift the bootstrapping values up by one
-            bootstrap_values = jax.tree_map(lambda x: jnp.concatenate([x[:,1:],jnp.expand_dims(zeros[:,-1],-1)],-1), bootstrap_values)
-            
-           
+            # Shift the bootstrapping values up by one and concatenate a zero on the end
+            bootstrap_values = jax.tree_map(
+                lambda x: jnp.concatenate(
+                    [x[:, 1:], jnp.expand_dims(zeros[:, -1], -1)], -1
+                ),
+                bootstrap_values,
+            )
 
             target_values = {}
             for key in rewards.keys():
