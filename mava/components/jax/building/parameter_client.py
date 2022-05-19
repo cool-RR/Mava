@@ -58,6 +58,7 @@ class ExecutorParameterClient(BaseParameterClient):
 
         self.config = config
 
+    # TODO (sasha) move to own component
     def on_building_executor_parameter_client(self, builder: SystemBuilder) -> None:
         """_summary_
 
@@ -69,11 +70,13 @@ class ExecutorParameterClient(BaseParameterClient):
         get_keys = []
         net_type_key = "networks"
         for agent_net_key in builder.store.networks[net_type_key].keys():
-            param_key = f"{net_type_key}-{agent_net_key}"
-            params[param_key] = builder.store.networks[net_type_key][
-                agent_net_key
-            ].params
-            get_keys.append(param_key)
+            # Executor gets both high level and low level params
+            for net_level_key in ["hl", "ll"]:
+                param_key = f"{net_type_key}-{agent_net_key}-{net_level_key}"
+                params[param_key] = builder.store.networks[net_type_key][
+                    agent_net_key
+                ].params
+                get_keys.append(param_key)
 
         count_names, params = self._set_up_count_parameters(params=params)
         get_keys.extend(count_names)
@@ -142,16 +145,18 @@ class TrainerParameterClient(BaseParameterClient):
         get_keys = []
         # TODO (dries): Only add the networks this trainer is working with.
         # Not all of them.
+        # TODO (sasha): move this to own component
         trainer_networks = builder.store.trainer_networks[builder.store.trainer_id]
         for net_type_key in builder.store.networks.keys():
             for net_key in builder.store.networks[net_type_key].keys():
-                params[f"{net_type_key}-{net_key}"] = builder.store.networks[
-                    net_type_key
-                ][net_key].params
+                param_key = f"{net_type_key}-{net_key}-{builder.store.net_level_key}"
+                params[param_key] = builder.store.networks[net_type_key][net_key][
+                    builder.store.net_level_key
+                ].params
                 if net_key in set(trainer_networks):
-                    set_keys.append(f"{net_type_key}-{net_key}")
+                    set_keys.append(param_key)
                 else:
-                    get_keys.append(f"{net_type_key}-{net_key}")
+                    get_keys.append(param_key)
 
         # Add the optimizers to the variable server.
         # TODO (dries): Adjust this if using policy and critic optimizers.

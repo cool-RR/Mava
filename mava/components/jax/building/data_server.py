@@ -57,10 +57,14 @@ class DataServer(Component):
             not the {builder.store.network_sampling_setup_type} setting."
 
         for table_key in builder.store.table_network_config.keys():
-            # TODO (dries): Clean the below coverter code up.
+            # TODO (dries): Clean the below converter code up.
             # Convert a Mava spec
             num_networks = len(builder.store.table_network_config[table_key])
             env_spec = copy.deepcopy(builder.store.environment_spec)
+            env_spec._specs = {  # extracting hl/ll spec keys
+                key: spec[builder.store.spec_key]
+                for key, spec in env_spec._specs.items()
+            }  # TODO (sasha this needs to move to it's own component
             env_spec._specs = covert_specs(
                 builder.store.agent_net_keys, env_spec._specs, num_networks
             )

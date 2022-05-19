@@ -19,32 +19,43 @@ class HrlDistributor(Distributor):
             name=self.config.distributor_name,
         )
 
-        # reverb
+        # experience nodes
+        builder.store.spec_key = "hl"
         hl_data_server = builder.store.program.add(
             builder.data_server,
             node_type=NodeType.reverb,
-            name="data_server",
+            name="hl_data_server",
         )
 
+        builder.store.spec_key = "ll"
         ll_data_server = builder.store.program.add(
             builder.data_server,
             node_type=NodeType.reverb,
-            name="data_server",
+            name="ll_data_server",
         )
-        data_server = (hl_data_server, ll_data_server)
+        data_servers = (hl_data_server, ll_data_server)
 
-        # variable server node
-        parameter_server = builder.store.program.add(
+        # variable server nodes
+        builder.store.net_level_key = "hl"
+        hl_parameter_server = builder.store.program.add(
             builder.parameter_server,
             node_type=NodeType.corrier,
-            name="parameter_server",
+            name="hl_parameter_server",
         )
 
+        builder.store.net_level_key = "ll"
+        ll_parameter_server = builder.store.program.add(
+            builder.parameter_server,
+            node_type=NodeType.corrier,
+            name="ll_parameter_server",
+        )
+
+        parameter_servers = (hl_parameter_server, ll_parameter_server)
         # executor nodes
         for executor_id in range(self.config.num_executors):
             builder.store.program.add(
                 builder.executor,
-                [f"executor_{executor_id}", data_server, parameter_server],
+                [f"executor_{executor_id}", data_servers, parameter_servers],
                 node_type=NodeType.corrier,
                 name="executor",
             )
@@ -53,7 +64,7 @@ class HrlDistributor(Distributor):
             # evaluator node
             builder.store.program.add(
                 builder.executor,
-                ["evaluator", data_server, parameter_server],
+                ["evaluator", data_servers, parameter_servers],
                 node_type=NodeType.corrier,
                 name="evaluator",
             )
@@ -62,9 +73,16 @@ class HrlDistributor(Distributor):
         for trainer_id in builder.store.trainer_networks.keys():
             builder.store.program.add(
                 builder.trainer,
-                [trainer_id, data_server, parameter_server],
+                [trainer_id, hl_data_server, hl_parameter_server],
                 node_type=NodeType.corrier,
-                name="trainer",
+                name="hl_trainer",
+            )
+
+            builder.store.program.add(
+                builder.trainer,
+                [trainer_id, ll_data_server, ll_parameter_server],
+                node_type=NodeType.corrier,
+                name="ll_trainer",
             )
 
         if not self.config.multi_process:

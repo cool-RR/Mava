@@ -14,28 +14,6 @@ class HrlMAEnvironmentSpec(MAEnvironmentSpec):
     HIGH_LEVEL = "hl"
     LOW_LEVEL = "ll"
 
-    # def __init__(
-    #     self,
-    #     environment: dm_env.Environment,
-    #     specs: Dict[str, EnvironmentSpec] = None,
-    #     extra_specs: Dict = None,
-    # ):
-    #     """_summary_
-    #
-    #     Args:
-    #         environment : _description_
-    #         specs : _description_.
-    #         extra_specs : _description_.
-    #     """
-    #     if not specs:
-    #         specs = self._make_ma_environment_spec(environment)
-    #     else:
-    #         self.extra_specs = extra_specs
-    #
-    #     self._keys = list(sort_str_num(specs.keys()))
-    #     # sorting the agents
-    #     self._specs = {key: specs[self.HIGH_LEVEL][key] for key in self._keys}
-
     def _make_ma_environment_spec(
         self, environment: dm_env.Environment  # TODO type as hrl env wrapper
     ) -> Dict[str, Dict[str, EnvironmentSpec]]:
@@ -49,6 +27,9 @@ class HrlMAEnvironmentSpec(MAEnvironmentSpec):
         reward_specs = environment.reward_spec()
         discount_specs = environment.discount_spec()
         self.extra_specs = environment.extra_spec()
+
+        print(f"hrl ma env spec got: {observation_specs}")
+
         for agent in environment.possible_agents:
             specs[agent] = {
                 self.HIGH_LEVEL: EnvironmentSpec(
@@ -64,6 +45,7 @@ class HrlMAEnvironmentSpec(MAEnvironmentSpec):
                     discounts=discount_specs[self.LOW_LEVEL][agent],
                 ),
             }
+
         return specs
 
     def get_agent_type_specs(self):
@@ -85,3 +67,26 @@ class HrlEnvironmentSpec(building.EnvironmentSpec):
             builder.store.environment_spec.get_agent_ids()
         )
         builder.store.extras_spec = {}
+
+
+def invert_hrl_spec_dict(specs):
+    """
+    Inverts an HrlMAEnvironmentSpec dict from having agent as the first key to having high/low
+    level as the first key
+
+    """
+    HIGH_LEVEL = HrlMAEnvironmentSpec.HIGH_LEVEL
+    LOW_LEVEL = HrlMAEnvironmentSpec.LOW_LEVEL
+
+    new_specs = {
+        HIGH_LEVEL: {},
+        LOW_LEVEL: {},
+    }
+
+    print(specs)
+
+    for agent_id, spec in specs.items():
+        new_specs[HIGH_LEVEL][agent_id] = spec[HIGH_LEVEL]
+        new_specs[LOW_LEVEL][agent_id] = spec[LOW_LEVEL]
+
+    return new_specs
