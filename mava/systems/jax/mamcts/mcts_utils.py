@@ -17,11 +17,7 @@ def generic_root_fn():
         Callable function used by the MCTS component"""
 
     def root_fn(forward_fn, params, rng_key, env_state, observation):
-<<<<<<< HEAD
         prior_logits, values, _ = forward_fn(
-=======
-        prior_logits, values = forward_fn(
->>>>>>> feature/jax-mamcts-system
             observations=observation, params=params, key=rng_key
         )
 
@@ -185,11 +181,7 @@ def greedy_policy_recurrent_fn(discount_gamma=0.99) -> Callable:
             environment_model.get_observation, in_axes=(None, 0)
         )(env_state, stacked_agents)
 
-<<<<<<< HEAD
         _, _, prev_prior_logits = forward_fn(
-=======
-        prev_prior_logits, _ = forward_fn(
->>>>>>> feature/jax-mamcts-system
             observations=prev_observations, params=params, key=rng_key
         )
 
