@@ -39,6 +39,7 @@ class Trainer(SystemTrainer, TrainerHookMixin):
         """
         self.store = config
         self.callbacks = components
+        print(f"I AM THE {self.store.net_level_key} TRAINER")
 
         self.on_training_init_start()
 

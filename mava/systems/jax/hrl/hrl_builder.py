@@ -34,6 +34,30 @@ class HrlBuilder(Builder):
         """
         super().__init__(components)
 
+    def hl_data_server(self):
+        self.store.spec_key = "hl"
+        return self.data_server()
+
+    def ll_data_server(self):
+        self.store.spec_key = "ll"
+        return self.data_server()
+
+    def hl_param_server(self):
+        self.store.net_level_key = "hl"
+        return self.parameter_server()
+
+    def ll_param_server(self):
+        self.store.net_level_key = "ll"
+        return self.parameter_server()
+
+    def hl_trainer(self, trainer_id, data_server_client, parameter_server_client):
+        self.store.net_level_key = "hl"
+        return self.trainer(trainer_id, data_server_client, parameter_server_client)
+
+    def ll_trainer(self, trainer_id, data_server_client, parameter_server_client):
+        self.store.net_level_key = "ll"
+        return self.trainer(trainer_id, data_server_client, parameter_server_client)
+
     def executor(
         self, executor_id: str, data_server_client: Any, parameter_server_client: Any
     ) -> Any:

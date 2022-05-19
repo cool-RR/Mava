@@ -63,9 +63,12 @@ class MAPGMinibatchUpdate(Utility):
 
         # Initialize optimizers.
         trainer.store.opt_states = {}
+        print(f"TRAINER WITH KEY: {trainer.store.net_level_key}")
         for net_key in trainer.store.networks["networks"].keys():
             trainer.store.opt_states[net_key] = trainer.store.optimizer.init(
-                trainer.store.networks["networks"][net_key].params
+                trainer.store.networks["networks"][net_key][
+                    trainer.store.net_level_key
+                ].params
             )  # pytype: disable=attribute-error
 
         def model_update_minibatch(

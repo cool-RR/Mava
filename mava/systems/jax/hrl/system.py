@@ -21,7 +21,7 @@ from mava.components.jax import building, executing, training, updating
 from mava.specs import DesignSpec
 from mava.systems.jax import System
 from mava.systems.jax.hrl.adder import HrlParallelSequenceAdder
-from mava.systems.jax.hrl.builder import HrlBuilder
+from mava.systems.jax.hrl.hrl_builder import HrlBuilder
 from mava.systems.jax.hrl.hrl_distributor import HrlDistributor
 from mava.systems.jax.hrl.hrl_env_spec import HrlEnvironmentSpec
 from mava.systems.jax.mappo.components import ExtrasLogProbSpec

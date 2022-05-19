@@ -1,18 +1,16 @@
 from mava.components.jax.building.distributor import Distributor
-from mava.core_jax import SystemBuilder
 from mava.systems.jax import Launcher
+from mava.systems.jax.hrl.hrl_builder import HrlBuilder
 from mava.systems.jax.launcher import NodeType
 
 
 class HrlDistributor(Distributor):
-    def on_building_program_nodes(self, builder: SystemBuilder) -> None:
+    def on_building_program_nodes(self, builder: HrlBuilder) -> None:
         """_summary_
 
         Args:
             builder : _description_
         """
-        print("TYPE BUILDER!!!!", type(builder))
-
         builder.store.program = Launcher(
             multi_process=self.config.multi_process,
             nodes_on_gpu=self.config.nodes_on_gpu,
@@ -20,37 +18,33 @@ class HrlDistributor(Distributor):
         )
 
         # experience nodes
-        builder.store.spec_key = "hl"
         hl_data_server = builder.store.program.add(
-            builder.data_server,
+            builder.hl_data_server,
             node_type=NodeType.reverb,
             name="hl_data_server",
         )
 
-        builder.store.spec_key = "ll"
         ll_data_server = builder.store.program.add(
-            builder.data_server,
+            builder.ll_data_server,
             node_type=NodeType.reverb,
             name="ll_data_server",
         )
         data_servers = (hl_data_server, ll_data_server)
 
         # variable server nodes
-        builder.store.net_level_key = "hl"
         hl_parameter_server = builder.store.program.add(
-            builder.parameter_server,
+            builder.hl_param_server,
             node_type=NodeType.corrier,
             name="hl_parameter_server",
         )
 
-        builder.store.net_level_key = "ll"
         ll_parameter_server = builder.store.program.add(
-            builder.parameter_server,
+            builder.ll_param_server,
             node_type=NodeType.corrier,
             name="ll_parameter_server",
         )
 
-        parameter_servers = (hl_parameter_server, ll_parameter_server)
+        parameter_servers = {"hl": hl_parameter_server, "ll": ll_parameter_server}
         # executor nodes
         for executor_id in range(self.config.num_executors):
             builder.store.program.add(
@@ -72,14 +66,14 @@ class HrlDistributor(Distributor):
         # trainer nodes
         for trainer_id in builder.store.trainer_networks.keys():
             builder.store.program.add(
-                builder.trainer,
+                builder.hl_trainer,
                 [trainer_id, hl_data_server, hl_parameter_server],
                 node_type=NodeType.corrier,
                 name="hl_trainer",
             )
 
             builder.store.program.add(
-                builder.trainer,
+                builder.ll_trainer,
                 [trainer_id, ll_data_server, ll_parameter_server],
                 node_type=NodeType.corrier,
                 name="ll_trainer",

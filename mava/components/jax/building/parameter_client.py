@@ -65,40 +65,43 @@ class ExecutorParameterClient(BaseParameterClient):
         Args:
             builder : _description_
         """
-        # Create policy parameters
-        params = {}
-        get_keys = []
-        net_type_key = "networks"
-        for agent_net_key in builder.store.networks[net_type_key].keys():
-            # Executor gets both high level and low level params
-            for net_level_key in ["hl", "ll"]:
+        parameter_clients = []
+        for net_level_key in ["hl", "ll"]:
+            # Create policy parameters
+            params = {}
+            get_keys = []
+            net_type_key = "networks"
+            for agent_net_key in builder.store.networks[net_type_key].keys():
+                # Executor gets both high level and low level params
                 param_key = f"{net_type_key}-{agent_net_key}-{net_level_key}"
-                params[param_key] = builder.store.networks[net_type_key][
-                    agent_net_key
+                params[param_key] = builder.store.networks[net_type_key][agent_net_key][
+                    net_level_key
                 ].params
                 get_keys.append(param_key)
 
-        count_names, params = self._set_up_count_parameters(params=params)
-        get_keys.extend(count_names)
+            count_names, params = self._set_up_count_parameters(params=params)
+            get_keys.extend(count_names)
 
-        builder.store.executor_counts = {name: params[name] for name in count_names}
+            builder.store.executor_counts = {name: params[name] for name in count_names}
 
-        parameter_client = None
-        if builder.store.parameter_server_client:
-            # Create parameter client
-            parameter_client = ParameterClient(
-                client=builder.store.parameter_server_client,
-                parameters=params,
-                get_keys=get_keys,
-                set_keys=[],
-                update_period=self.config.executor_parameter_update_period,
-            )
+            parameter_client = None
+            if builder.store.parameter_server_client:
+                # Create parameter client
+                parameter_client = ParameterClient(
+                    client=builder.store.parameter_server_client[net_level_key],
+                    parameters=params,
+                    get_keys=get_keys,
+                    set_keys=[],
+                    update_period=self.config.executor_parameter_update_period,
+                )
 
-            # Make sure not to use a random policy after checkpoint restoration by
-            # assigning parameters before running the environment loop.
-            parameter_client.get_and_wait()
+                # Make sure not to use a random policy after checkpoint restoration by
+                # assigning parameters before running the environment loop.
+                parameter_client.get_and_wait()
 
-        builder.store.executor_parameter_client = parameter_client
+            parameter_clients.append(parameter_client)
+
+        builder.store.executor_parameter_client = parameter_clients
 
     @staticmethod
     def name() -> str:

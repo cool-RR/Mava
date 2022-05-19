@@ -109,7 +109,7 @@ class TrajectoryDataset(Component):
         """
         dataset = reverb.TrajectoryDataset.from_table_signature(
             server_address=builder.store.data_server_client.server_address,
-            table=builder.store.trainer_id,
+            table=builder.store.trainer_id,  # TODO sasha this is where we pull in the correct table
             max_in_flight_samples_per_worker=2 * self.config.sample_batch_size,
             num_workers_per_iterator=self.config.num_workers_per_iterator,
             max_samples_per_stream=self.config.max_samples_per_stream,
