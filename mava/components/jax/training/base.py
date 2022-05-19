@@ -40,7 +40,7 @@ class Batch(NamedTuple):
 
 
 class MCTSBatch(NamedTuple):
-    """A batch of data; all shapes are expected to be [B, ...]."""
+    """A batch of MAMCTS data; all shapes are expected to be [B, ...]."""
 
     observations: Any
     search_policies: Any

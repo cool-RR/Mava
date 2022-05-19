@@ -73,7 +73,7 @@ class NStepBootStrappedReturns(Utility):
         Returns:
             _description_
         """
-        return "advantage_estimator"
+        return "n_step_bootstrapped_returns"
 
     @staticmethod
     def config_class() -> Callable:

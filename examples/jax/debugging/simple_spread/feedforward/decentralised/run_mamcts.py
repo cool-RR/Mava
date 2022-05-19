@@ -141,9 +141,12 @@ def main(_: Any) -> None:
         recurrent_fn=greedy_policy_recurrent_fn(discount_gamma=1.0),
         search=mctx.gumbel_muzero_policy,
         environment_model=environment_factory(),
-        num_simulations=30,
+        num_simulations=20,
+        evaluator_num_simulations=50,
+        evaluator_other_search_params=lambda: {"gumbel_scale": 0.0},
         rng_seed=0,
         n_step=10,
+        discount=0.99,
         executor_stats_wrapper_class=JAXDetailedEpisodeStatistics,
         # evaluator_stats_wrapper_class=JAXMonitorEnvironmentLoop,
     )

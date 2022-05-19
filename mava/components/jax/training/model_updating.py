@@ -178,6 +178,9 @@ class MAPGEpochUpdate(Utility):
             #         lambda x: x.shape[0]==trainer.store.full_batch_size, batch
             #     )
             # assert ...
+            print(list(batch.observations.values())[0].observation.shape[0])
+            print("VS")
+            print(trainer.store.full_batch_size)
             assert (
                 list(batch.observations.values())[0].observation.shape[0]
                 == trainer.store.full_batch_size
@@ -225,13 +228,9 @@ class MAPGEpochUpdate(Utility):
         return MAPGEpochUpdateConfig
 
 
-# Duplicate config
 @dataclass
-class MAMCTSMinibatchUpdateConfig:
-    learning_rate: float = 1e-3
-    adam_epsilon: float = 1e-5
-    max_gradient_norm: float = 0.5
-    optimizer: Optional[optax_base.GradientTransformation] = (None,)
+class MAMCTSMinibatchUpdateConfig(MAPGMinibatchUpdateConfig):
+    pass
 
 
 class MAMCTSMinibatchUpdate(Utility):

@@ -161,6 +161,8 @@ class MAMCTSLossConfig:
 
 
 class MAMCTSLoss(Loss):
+    """MAMCTS Loss - essentially a decentralised AlphaZero loss"""
+
     def __init__(
         self,
         config: MAMCTSLossConfig = MAMCTSLossConfig(),
