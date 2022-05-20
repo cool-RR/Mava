@@ -13,8 +13,6 @@ class HrlParallelSequenceAdder(ParallelSequenceAdder):
         assert not hasattr(builder.store, "adder_priority_fn")
         assert isinstance(builder.store.data_server_client, tuple)
 
-        print("in hrl adder")
-
         # Create custom priority functons for the adder
         priority_fns = {
             table_key: lambda x: 1.0

@@ -118,6 +118,8 @@ class MAPGWithTrustRegionStep(Step):
     def on_training_step_fn(self, trainer: SystemTrainer) -> None:
         """_summary_"""
 
+        net_level_key = trainer.store.net_level_key
+
         @jit
         def sgd_step(
             states: TrainingState, sample: reverb.ReplaySample
@@ -149,7 +151,7 @@ class MAPGWithTrustRegionStep(Step):
                 o = jax.tree_map(
                     lambda x: jnp.reshape(x, [-1] + list(x.shape[2:])), observation
                 )
-                _, behavior_values = networks[net_key].network.apply(
+                _, behavior_values = networks[net_key][net_level_key].network.apply(
                     states.params[net_key], o
                 )
                 behavior_values = jnp.reshape(behavior_values, reward.shape[0:2])
@@ -245,7 +247,10 @@ class MAPGWithTrustRegionStep(Step):
             # Repeat training for the given number of epoch, taking a random
             # permutation for every epoch.
             networks = trainer.store.networks["networks"]
-            params = {net_key: networks[net_key].params for net_key in networks.keys()}
+            params = {
+                net_key: networks[net_key][net_level_key].params
+                for net_key in networks.keys()
+            }
             opt_states = trainer.store.opt_states
             random_key, _ = jax.random.split(trainer.store.key)
 
@@ -263,10 +268,15 @@ class MAPGWithTrustRegionStep(Step):
             trainer.store.key = new_states.random_key
 
             networks = trainer.store.networks["networks"]
-            params = {net_key: networks[net_key].params for net_key in networks.keys()}
+            params = {
+                net_key: networks[net_key][net_level_key].params
+                for net_key in networks.keys()
+            }
             for net_key in params.keys():
                 # This below forloop is needed to not lose the param reference.
-                net_params = trainer.store.networks["networks"][net_key].params
+                net_params = trainer.store.networks["networks"][net_key][
+                    net_level_key
+                ].params
                 for param_key in net_params.keys():
                     net_params[param_key] = new_states.params[net_key][param_key]
 

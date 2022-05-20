@@ -6,10 +6,29 @@ import numpy as np
 from acme.utils import counting, loggers
 
 import mava
+from mava.components.jax.building import ParallelExecutorEnvironmentLoop
 from mava.environment_loop import ParallelEnvironmentLoop
 from mava.systems.jax.hrl.executor import HrlExecutor
 from mava.utils.training_utils import check_count_condition
 from mava.utils.wrapper_utils import generate_zeros_from_spec
+
+
+class HrlParallelExecutorEnvironmentLoop(ParallelExecutorEnvironmentLoop):
+    def on_building_executor_environment_loop(self, builder) -> None:
+        """_summary_
+
+        Args:
+            builder : _description_
+        """
+        executor_environment_loop = HrlParallelEnvironmentLoop(
+            environment=builder.store.executor_environment,
+            executor=builder.store.executor,
+            logger=builder.store.executor_logger,
+            should_update=self.config.should_update,
+        )
+        del builder.store.executor_logger
+
+        builder.store.system_executor = executor_environment_loop
 
 
 class HrlParallelEnvironmentLoop(ParallelEnvironmentLoop):
@@ -49,7 +68,7 @@ class HrlParallelEnvironmentLoop(ParallelEnvironmentLoop):
             label: optional label. Defaults to "sequential_environment_loop".
         """
         assert isinstance(executor, HrlExecutor)
-        # TODO (sasha): make HierarchicalEnvironment
+        # TODO (sasha): make HierarchicalEnvironmentWrapper
         # assert isinstance(environment, HierarchicalEnvironment)
         super().__init__(environment, executor, counter, logger, should_update, label)
 
@@ -63,7 +82,7 @@ class HrlParallelEnvironmentLoop(ParallelEnvironmentLoop):
         return timestep, env_extras
 
     def _get_actions(self, timestep: dm_env.TimeStep) -> Any:
-        actions = self._executor.select_ll_actions(timestep)
+        actions = self._executor.select_ll_actions(timestep.observation)
         if type(actions) == tuple:
             # Return other action information
             # e.g. the policy information.
@@ -73,21 +92,21 @@ class HrlParallelEnvironmentLoop(ParallelEnvironmentLoop):
 
     def observe_first(self, timestep, env_extras):
         self._executor.hl_observe_first(timestep, extras=env_extras)
-        hl_actions = self._executor.select_hl_actions(timestep.observation)
-        ll_timestep = self.env.convert_ll_observations(timestep, hl_actions)
-        env_extras["hl_actions"] = hl_actions
-        self._executor.ll_observe_first(ll_timestep, extras=env_extras)
+        hl_actions, _ = self._executor.select_hl_actions(timestep.observation)
+        ll_timestep = self._environment.ll_observations(timestep, hl_actions)
+        # env_extras["hl_actions"] = hl_actions
+        self._executor.ll_observe_first(ll_timestep, extras={})
 
-        return ll_timestep
+        return ll_timestep, hl_actions
 
-    def observe(self, timestep, env_extras):
-        self._executor.hl_observe(timestep, extras=env_extras)
-        hl_actions = self._executor.select_hl_actions(timestep.observation)
-        ll_timestep = self.env.convert_ll_observations(timestep, hl_actions)
-        env_extras["hl_actions"] = hl_actions
-        self._executor.ll_observe(ll_timestep, extras=env_extras)
+    def observe(self, prev_hl_actions, prev_ll_actions, timestep, env_extras):
+        self._executor.hl_observe(prev_hl_actions, timestep, env_extras)
+        hl_actions, _ = self._executor.select_hl_actions(timestep.observation)
+        ll_timestep = self._environment.ll_observations(timestep, hl_actions)
+        # env_extras["hl_actions"] = hl_actions
+        self._executor.ll_observe(prev_ll_actions, ll_timestep, {})
 
-        return ll_timestep
+        return ll_timestep, hl_actions
 
     def run_episode(self) -> loggers.LoggingData:
         """Run one episode.
@@ -107,13 +126,13 @@ class HrlParallelEnvironmentLoop(ParallelEnvironmentLoop):
         timestep = self._environment.reset()
         timestep, env_extras = self.get_extras(timestep)
         # Make the first observation.
-        ll_timestep = self.observe_first(timestep, env_extras)
+        ll_timestep, hl_actions = self.observe_first(timestep, env_extras)
 
         # For evaluation, this keeps track of the total undiscounted reward
         # for each agent accumulated during the episode.
         rewards: Dict[str, float] = {}
         episode_returns: Dict[str, float] = {}
-        for agent, spec in self._environment.reward_spec().items():
+        for agent, spec in self._environment.reward_spec()["hl"].items():
             rewards.update({agent: generate_zeros_from_spec(spec)})
             episode_returns.update({agent: generate_zeros_from_spec(spec)})
 
@@ -125,7 +144,9 @@ class HrlParallelEnvironmentLoop(ParallelEnvironmentLoop):
             rewards = timestep.reward
 
             # Have the agent observe the timestep and let the actor update itself.
-            ll_timestep = self.observe(timestep, env_extras)
+            ll_timestep, hl_actions = self.observe(
+                hl_actions, env_actions, timestep, env_extras
+            )
 
             if self._should_update:
                 self._executor.update()

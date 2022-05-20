@@ -28,8 +28,6 @@ class HrlMAEnvironmentSpec(MAEnvironmentSpec):
         discount_specs = environment.discount_spec()
         self.extra_specs = environment.extra_spec()
 
-        print(f"hrl ma env spec got: {observation_specs}")
-
         for agent in environment.possible_agents:
             specs[agent] = {
                 self.HIGH_LEVEL: EnvironmentSpec(
@@ -82,8 +80,6 @@ def invert_hrl_spec_dict(specs):
         HIGH_LEVEL: {},
         LOW_LEVEL: {},
     }
-
-    print(specs)
 
     for agent_id, spec in specs.items():
         new_specs[HIGH_LEVEL][agent_id] = spec[HIGH_LEVEL]

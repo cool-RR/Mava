@@ -70,7 +70,6 @@ class HrlBuilder(Builder):
         Returns:
             System executor
         """
-        print(f"[hrl builder]: dataserver: {type(data_server_client)}")
         self.store.executor_id = executor_id
         self.store.data_server_client = data_server_client
         self.store.parameter_server_client = parameter_server_client

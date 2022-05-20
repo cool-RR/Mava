@@ -16,7 +16,7 @@ from mava.wrappers.env_wrappers import ParallelEnvWrapper
 
 
 class DummyEnv(ParallelEnvWrapper):
-    def __init__(self, num_agents=2, hl_obs_size=(5,), ll_obs_size=(3,)):
+    def __init__(self, num_agents=2, hl_obs_size=(3,), ll_obs_size=(4,)):
         super(DummyEnv, self).__init__()
 
         self.num_agents = num_agents
@@ -25,14 +25,22 @@ class DummyEnv(ParallelEnvWrapper):
 
         self.t = 0
 
-        self.hl_action_shape = (2,)
-        self.ll_action_shape = (4,)
+        self.hl_num_actions = 5
+        self.ll_num_actions = 4
 
     def gen_hl_obs(self):
-        return np.random.uniform(size=self.hl_obs_size)
+        return OLT(
+            np.random.uniform(size=self.hl_obs_size),
+            np.array([True] * self.hl_num_actions),
+            np.array([self.env_done()]),
+        )
 
     def gen_ll_obs(self):
-        return np.random.uniform(size=self.ll_obs_size)
+        return OLT(
+            np.random.uniform(size=self.ll_obs_size),
+            np.array([True] * self.ll_num_actions),
+            np.array([self.env_done()]),
+        )
 
     def reset(self) -> TimeStep:
         self.t = 0
@@ -42,11 +50,12 @@ class DummyEnv(ParallelEnvWrapper):
             {agent: self.gen_hl_obs() for agent in self.possible_agents},
         )
 
+    # TODO (sasha) invert obs level/agent nesting
     def step(self, action) -> TimeStep:
         self.t += 1
 
-        step_type = dm_env.StepType.MID if self.t < 50 else dm_env.StepType.LAST
-        discount = 1.0 if self.t < 50 else 0.0
+        step_type = dm_env.StepType.MID if not self.env_done() else dm_env.StepType.LAST
+        discount = 1.0 if not self.env_done() else 0.0
 
         return TimeStep(
             step_type,
@@ -55,18 +64,40 @@ class DummyEnv(ParallelEnvWrapper):
             {agent: self.gen_hl_obs() for agent in self.possible_agents},
         )
 
+    def ll_observations(self, ts: TimeStep, hl_actions: np.ndarray) -> TimeStep:
+        observations = {}
+        rewards = {}
+
+        for agent in ts.observation.keys():
+            hl_action = hl_actions[agent]
+            if np.ndim(hl_action) == 0:
+                hl_action = np.expand_dims(hl_action, 0)
+
+            obs = np.concatenate([ts.observation[agent].observation, hl_action])
+            legals = np.array([True] * 4)
+            terminal = np.array([self.env_done()])
+
+            observations[agent] = OLT(obs, legals, terminal)
+            rewards[agent] = ts.reward[agent] - 0.1
+
+        return TimeStep(ts.step_type, rewards, ts.discount, observations)
+
     def observation_spec(self):
         return {
-            "hl": self.gen_observation_spec(self.gen_hl_obs(), self.hl_action_shape),
-            "ll": self.gen_observation_spec(self.gen_ll_obs(), self.ll_action_shape),
+            "hl": self.gen_observation_spec(self.gen_hl_obs()),
+            "ll": self.gen_observation_spec(self.gen_ll_obs()),
         }
 
-    def gen_observation_spec(self, obs, action_shape):
+    def gen_observation_spec(self, obs):
         return {
             agent: OLT(
-                observation=specs.BoundedArray(obs.shape, obs[0].dtype, 0.0, 1.0),
-                legal_actions=specs.BoundedArray(action_shape, float, -10.0, 10.0),
-                terminal=specs.Array((1,), np.float32),
+                observation=specs.BoundedArray(
+                    obs.observation.shape, obs.observation[0].dtype, 0.0, 1.0
+                ),
+                legal_actions=specs.BoundedArray(
+                    obs.legal_actions.shape, obs.legal_actions.dtype, -10.0, 10.0
+                ),
+                terminal=specs.Array(obs.terminal.shape, obs.terminal.dtype),
             )
             for agent in self.possible_agents
         }
@@ -74,25 +105,29 @@ class DummyEnv(ParallelEnvWrapper):
     def action_spec(self):
         return {
             "hl": {
-                agent: specs.DiscreteArray(num_values=self.hl_action_shape[0])
+                agent: specs.DiscreteArray(
+                    num_values=self.hl_num_actions, dtype=np.int64
+                )
                 for agent in self.possible_agents
             },
             "ll": {
-                agent: specs.DiscreteArray(num_values=self.ll_action_shape[0])
+                agent: specs.DiscreteArray(
+                    num_values=self.ll_num_actions, dtype=np.int64
+                )
                 for agent in self.possible_agents
             },
         }
 
     def reward_spec(self):
         return {
-            key: {agent: specs.Array((), np.float32) for agent in self.possible_agents}
+            key: {agent: specs.Array((), np.float64) for agent in self.possible_agents}
             for key in ["hl", "ll"]
         }
 
     def discount_spec(self):
         return {
-            key: {
-                agent: specs.BoundedArray((), np.float32, minimum=0, maximum=1.0)
+            key: {  # TODO (sasha) should rather convert the discounts + rewards to float32/float16
+                agent: specs.BoundedArray((), np.float64, minimum=0, maximum=1.0)
                 for agent in self.possible_agents
             }
             for key in ["hl", "ll"]

@@ -30,7 +30,6 @@ class MAPPOSystem(System):
         Returns:
             system callback components
         """
-        print("DESIGN!")
         # Set the default configs
         default_params = MAPPODefaultConfig()
 

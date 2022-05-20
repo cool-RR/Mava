@@ -96,7 +96,8 @@ class FeedforwardExecutorObserve(Component):
     def on_execution_update(self, executor: SystemExecutor) -> None:
         """Update the policy variables."""
         if executor.store.executor_parameter_client:
-            executor.store.executor_parameter_client.get_async()
+            for client in executor.store.executor_parameter_client:
+                client.get_async()  # TODO (sasha): test that this works somehow
 
     @staticmethod
     def name() -> str:

@@ -14,29 +14,43 @@ class HrlExecutor(Executor):
 
         self.adders = self.store.adder
         self.networks = self.store.networks
-        print(self.adders)
-        print(self.networks)
 
-        assert isinstance(
-            self.adders, list
-        ), f"expected tuple of adders, but got {type(self.adders)}"
+        # TODO (sasha) make it a dict of adder for consistency
+        if not self._evaluator:
+            assert isinstance(
+                self.adders, list
+            ), f"expected tuple of adders, but got {type(self.adders)}"
 
         # assert isinstance(
         #     self.networks, list
         # ), f"expected tuple of networks, but got {type(self.networks)}"
 
-    def use_hl_adder(self):
-        self.store.adder = self.adders[0]
+    def _use_hl_adder(self):
+        if not self._evaluator:
+            self.store.adder = self.adders[0]
 
-    def use_ll_adder(self):
-        self.store.adder = self.adders[1]
+    def _use_ll_adder(self):
+        if not self._evaluator:
+            self.store.adder = self.adders[1]
+
+    def _set_network_level(self, level):
+        self.store.networks = {
+            "networks": {agent_id: network[level]}
+            for agent_id, network in self.networks["networks"].items()
+        }
+
+    def _use_hl_networks(self):
+        self._set_network_level("hl")
+
+    def _use_ll_networks(self):
+        self._set_network_level("ll")
 
     def hl_observe_first(
         self,
         timestep: dm_env.TimeStep,
         extras: Dict[str, NestedArray] = {},
     ) -> None:
-        self.use_hl_adder()
+        self._use_hl_adder()
         return self.observe_first(timestep, extras)
 
     def ll_observe_first(
@@ -44,7 +58,7 @@ class HrlExecutor(Executor):
         timestep: dm_env.TimeStep,
         extras: Dict[str, NestedArray] = {},
     ) -> None:
-        self.use_ll_adder()
+        self._use_ll_adder()
         return self.observe_first(timestep, extras)
 
     def hl_observe(
@@ -53,8 +67,10 @@ class HrlExecutor(Executor):
         next_timestep: dm_env.TimeStep,
         next_extras: Dict[str, NestedArray] = {},
     ) -> None:
-        self.use_hl_adder()
-        return self.observe(actions, next_timestep, next_extras)
+        self._use_hl_adder()
+        self.observe(actions, next_timestep, next_extras)
+        # for safety to make sure we always select an adder level before observing
+        self.store.adder = self.adders
 
     def ll_observe(
         self,
@@ -62,13 +78,21 @@ class HrlExecutor(Executor):
         next_timestep: dm_env.TimeStep,
         next_extras: Dict[str, NestedArray] = {},
     ) -> None:
-        self.use_ll_adder()
-        return self.observe(actions, next_timestep, next_extras)
+        self._use_ll_adder()
+        self.observe(actions, next_timestep, next_extras)
+        # for safety to make sure we always select an adder level before observing
+        self.store.adder = self.adders
 
-    def select_hl_actions(
-        self,
-        agent: str,
-        observation: NestedArray,
-        state: NestedArray = None,
-    ) -> NestedArray:
-        pass
+    def select_hl_actions(self, observation: NestedArray) -> NestedArray:
+        self._use_hl_networks()
+        actions = self.select_actions(observation)
+        # for safety to make sure we always select a network level before selecting actions
+        self.store.networks = self.networks
+        return actions
+
+    def select_ll_actions(self, observation: NestedArray) -> NestedArray:
+        self._use_ll_networks()
+        actions = self.select_actions(observation)
+        # for safety to make sure we always select a network level before selecting actions
+        self.store.networks = self.networks
+        return actions
