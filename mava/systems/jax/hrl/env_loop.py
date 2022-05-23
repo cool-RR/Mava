@@ -11,6 +11,7 @@ from mava.components.jax.building import ParallelExecutorEnvironmentLoop
 from mava.components.jax.building.environments import ExecutorEnvironmentLoopConfig
 from mava.environment_loop import ParallelEnvironmentLoop
 from mava.systems.jax.hrl.executor import HrlExecutor
+from mava.systems.jax.hrl.hrl_wrapper import HrlEnvironmentWrapper
 from mava.utils.training_utils import check_count_condition
 from mava.utils.wrapper_utils import generate_zeros_from_spec
 
@@ -94,8 +95,8 @@ class HrlParallelEnvironmentLoop(ParallelEnvironmentLoop):
             label: optional label. Defaults to "sequential_environment_loop".
         """
         assert isinstance(executor, HrlExecutor)
-        # TODO (sasha): make HierarchicalEnvironmentWrapper
-        # assert isinstance(environment, HierarchicalEnvironment)
+        assert isinstance(environment, HrlEnvironmentWrapper)
+
         super().__init__(environment, executor, counter, logger, should_update, label)
         self.hrl_interval = hrl_interval
 
@@ -120,7 +121,7 @@ class HrlParallelEnvironmentLoop(ParallelEnvironmentLoop):
     def observe_first(self, timestep, env_extras):
         self._executor.hl_observe_first(timestep, extras=env_extras)
         hl_actions, _ = self._executor.select_hl_actions(timestep.observation)
-        ll_timestep = self._environment.ll_observations(timestep, hl_actions)
+        ll_timestep = self._environment.ll_timestep(timestep, hl_actions)
         # env_extras["hl_actions"] = hl_actions
         self._executor.ll_observe_first(ll_timestep, extras={})
 
@@ -129,7 +130,7 @@ class HrlParallelEnvironmentLoop(ParallelEnvironmentLoop):
     def observe(self, prev_hl_actions, prev_ll_actions, timestep, env_extras):
         self._executor.hl_observe(prev_hl_actions, timestep, env_extras)
         hl_actions, _ = self._executor.select_hl_actions(timestep.observation)
-        ll_timestep = self._environment.ll_observations(timestep, hl_actions)
+        ll_timestep = self._environment.ll_timestep(timestep, hl_actions)
         # env_extras["hl_actions"] = hl_actions
         self._executor.ll_observe(prev_ll_actions, ll_timestep, {})
 

@@ -6,16 +6,12 @@ from acme import specs
 from acme.wrappers.gym_wrapper import _convert_to_spec
 from dm_env._environment import TimeStep
 
+from mava.systems.jax.hrl.hrl_wrapper import HrlEnvironmentWrapper
 from mava.types import OLT
-from mava.utils.wrapper_utils import (
-    convert_dm_compatible_observations,
-    convert_np_type,
-    parameterized_restart,
-)
-from mava.wrappers.env_wrappers import ParallelEnvWrapper
+from mava.utils.wrapper_utils import parameterized_restart
 
 
-class DummyEnv(ParallelEnvWrapper):
+class DummyEnv(HrlEnvironmentWrapper):
     def __init__(self, num_agents=2, hl_obs_size=(3,), ll_obs_size=(4,)):
         super(DummyEnv, self).__init__()
 
@@ -64,7 +60,7 @@ class DummyEnv(ParallelEnvWrapper):
             {agent: self.gen_hl_obs() for agent in self.possible_agents},
         )
 
-    def ll_observations(self, ts: TimeStep, hl_actions: np.ndarray) -> TimeStep:
+    def ll_timestep(self, ts: TimeStep, hl_actions: np.ndarray) -> TimeStep:
         observations = {}
         rewards = {}
 
