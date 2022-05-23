@@ -49,14 +49,10 @@ class MCTS:
         observation,
         agent_info,
         is_evaluator,
+        executor_steps
     ):
         """TODO: Add description here."""
-
-        num_simulations = (
-            self.config.evaluator_num_simulations
-            if is_evaluator
-            else self.config.num_simulations
-        )
+        num_simulations = int(jax.lax.cond(is_evaluator,self.config.evaluator_num_simulations_scheduler,self.config.num_simulations_scheduler,executor_steps))
         search_kwargs = (
             self.config.evaluator_other_search_params()
             if is_evaluator
@@ -89,6 +85,7 @@ class MCTS:
             "search_kwargs",
         ],
     )
+    @functools.partial(chex.assert_max_traces,n=20)
     def search(
         self,
         forward_fn,
@@ -101,7 +98,7 @@ class MCTS:
         **search_kwargs,
     ):
         """TODO: Add description here."""
-
+        
         root = self.config.root_fn(forward_fn, params, rng_key, env_state, observation)
 
         def recurrent_fn(params, rng_key, action, embedding):

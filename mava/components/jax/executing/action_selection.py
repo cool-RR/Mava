@@ -22,6 +22,7 @@ import acme.jax.utils as utils
 import jax
 import numpy as np
 from acme.jax import utils
+import optax
 
 from mava.components.jax import Component
 from mava.core_jax import SystemExecutor
@@ -89,12 +90,11 @@ class MCTSConfig:
     recurrent_fn: RecurrentFn = None
     search: TreeSearch = None
     environment_model: Any = None
-    num_simulations: int = 10
-    evaluator_num_simulations: int = 50
+    num_simulations_scheduler: optax.Schedule = optax.piecewise_constant_schedule(init_value=20,boundaries_and_scales={50_000 : 1.5, 100_000 : 1.5, 150_000 : 1.5, 200_000 : 1.5, 300_000 : 1.5})
+    evaluator_num_simulations_scheduler: optax.Schedule =optax.piecewise_constant_schedule(init_value=30,boundaries_and_scales={50_000 : 1.5, 100_000 : 1.5, 150_000 : 1.5, 200_000 : 1.5, 300_000 : 1.5})
     max_depth: MaxDepth = None
     other_search_params: Callable[[None], Dict[str, Any]] = lambda: {}
     evaluator_other_search_params: Callable[[None], Dict[str, Any]] = lambda: {}
-
 
 class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
     """MCTS action selection"""
@@ -139,7 +139,10 @@ class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
             observation,
             agent,
             executor.store.is_evaluator,
+            executor.store.executor_counts["executor_steps"]
         )
+
+        
 
     @staticmethod
     def config_class() -> Callable:

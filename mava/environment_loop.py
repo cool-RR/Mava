@@ -497,6 +497,7 @@ class ParallelEnvironmentLoop(acme.core.Worker):
                     )
                 current_step_t = total_steps_before_current_episode + episode_steps
                 self._executor.after_action_selection(current_step_t)
+                
 
             self._compute_step_statistics(rewards)
 
@@ -770,19 +771,6 @@ class JAXParallelEnvironmentLoop(acme.core.Worker):
 
             # Book-keeping.
             episode_steps += 1
-
-            if hasattr(self._executor, "after_action_selection"):
-                if hasattr(self._executor, "_counts"):
-                    loop_type = "evaluator" if self._executor._evaluator else "executor"
-                    total_steps_before_current_episode = self._executor._counts[
-                        f"{loop_type}_steps"
-                    ].numpy()
-                else:
-                    total_steps_before_current_episode = self._counter.get_counts().get(
-                        "executor_steps", 0
-                    )
-                current_step_t = total_steps_before_current_episode + episode_steps
-                self._executor.after_action_selection(current_step_t)
 
             self._compute_step_statistics(state, rewards)
 
