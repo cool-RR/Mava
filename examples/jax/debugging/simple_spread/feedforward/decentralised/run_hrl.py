@@ -98,6 +98,7 @@ def main(_: Any) -> None:
         num_epochs=15,
         num_executors=1,
         multi_process=True,
+        hrl_interval=5,
     )
 
     # Launch the system.

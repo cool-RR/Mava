@@ -1,19 +1,33 @@
 import time
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import dm_env
 import numpy as np
 from acme.utils import counting, loggers
+from chex import dataclass
 
 import mava
 from mava.components.jax.building import ParallelExecutorEnvironmentLoop
+from mava.components.jax.building.environments import ExecutorEnvironmentLoopConfig
 from mava.environment_loop import ParallelEnvironmentLoop
 from mava.systems.jax.hrl.executor import HrlExecutor
 from mava.utils.training_utils import check_count_condition
 from mava.utils.wrapper_utils import generate_zeros_from_spec
 
 
+@dataclass
+class HrlExecutorEnvironmentLoopConfig(ExecutorEnvironmentLoopConfig):
+    hrl_interval: int = 5
+
+
 class HrlParallelExecutorEnvironmentLoop(ParallelExecutorEnvironmentLoop):
+    def __init__(
+        self,
+        config: HrlExecutorEnvironmentLoopConfig = HrlExecutorEnvironmentLoopConfig(),
+    ):
+        """[summary]"""
+        self.config = config
+
     def on_building_executor_environment_loop(self, builder) -> None:
         """_summary_
 
@@ -25,10 +39,21 @@ class HrlParallelExecutorEnvironmentLoop(ParallelExecutorEnvironmentLoop):
             executor=builder.store.executor,
             logger=builder.store.executor_logger,
             should_update=self.config.should_update,
+            hrl_interval=self.config.hrl_interval,
         )
+
         del builder.store.executor_logger
 
         builder.store.system_executor = executor_environment_loop
+
+    @staticmethod
+    def config_class() -> Optional[Callable]:
+        """Config class used for component.
+
+        Returns:
+            config class/dataclass for component.
+        """
+        return HrlExecutorEnvironmentLoopConfig
 
 
 class HrlParallelEnvironmentLoop(ParallelEnvironmentLoop):
@@ -56,6 +81,7 @@ class HrlParallelEnvironmentLoop(ParallelEnvironmentLoop):
         logger: loggers.Logger = None,
         should_update: bool = True,
         label: str = "parallel_environment_loop",
+        hrl_interval: int = 5,
     ):
         """Parallel environment loop init
 
@@ -71,6 +97,7 @@ class HrlParallelEnvironmentLoop(ParallelEnvironmentLoop):
         # TODO (sasha): make HierarchicalEnvironmentWrapper
         # assert isinstance(environment, HierarchicalEnvironment)
         super().__init__(environment, executor, counter, logger, should_update, label)
+        self.hrl_interval = hrl_interval
 
     @staticmethod
     def get_extras(timestep):
