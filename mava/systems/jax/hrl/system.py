@@ -21,6 +21,10 @@ from mava.components.jax import building, executing, training, updating
 from mava.specs import DesignSpec
 from mava.systems.jax import System
 from mava.systems.jax.hrl.adder import HrlParallelSequenceAdder
+from mava.systems.jax.hrl.components import (
+    HrlExecutorParameterClient,
+    HrlTrainerParameterClient,
+)
 from mava.systems.jax.hrl.env_loop import HrlParallelExecutorEnvironmentLoop
 from mava.systems.jax.hrl.hrl_builder import HrlBuilder
 from mava.systems.jax.hrl.hrl_distributor import HrlDistributor
@@ -77,8 +81,8 @@ class HrlSystem(System):
         # Parameter Server
         parameter_server_process = DesignSpec(
             parameter_server=updating.DefaultParameterServer,
-            executor_parameter_client=building.ExecutorParameterClient,
-            trainer_parameter_client=building.TrainerParameterClient,
+            executor_parameter_client=HrlExecutorParameterClient,
+            trainer_parameter_client=HrlTrainerParameterClient,
         ).get()
 
         system = DesignSpec(
