@@ -16,15 +16,19 @@
 """Execution components for system builders"""
 import abc
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Callable, Optional, Type
 
 import acme
 
 from mava import specs
 from mava.components.jax import Component
 from mava.core_jax import SystemBuilder
-from mava.environment_loop import ParallelEnvironmentLoop
+from mava.environment_loop import JAXParallelEnvironmentLoop, ParallelEnvironmentLoop
 from mava.utils.sort_utils import sort_str_num
+from mava.wrappers.environment_loop_wrappers import (
+    DetailedPerAgentStatistics,
+    EnvironmentLoopStatisticsBase,
+)
 
 
 @dataclass
@@ -67,6 +71,10 @@ class EnvironmentSpec(Component):
 @dataclass
 class ExecutorEnvironmentLoopConfig:
     should_update: bool = True
+    executor_stats_wrapper_class: Optional[
+        Type[EnvironmentLoopStatisticsBase]
+    ] = DetailedPerAgentStatistics
+    evaluator_stats_wrapper_class: Optional[Type[EnvironmentLoopStatisticsBase]] = None
 
 
 class ExecutorEnvironmentLoop(Component):
@@ -97,7 +105,7 @@ class ExecutorEnvironmentLoop(Component):
     @staticmethod
     def name() -> str:
         """_summary_"""
-        return "environment_loop"
+        return "executor_environment_loop"
 
     @staticmethod
     def config_class() -> Optional[Callable]:
@@ -123,5 +131,40 @@ class ParallelExecutorEnvironmentLoop(ExecutorEnvironmentLoop):
             should_update=self.config.should_update,
         )
         del builder.store.executor_logger
+
+        if self.config.executor_stats_wrapper_class:
+            executor_environment_loop = self.config.executor_stats_wrapper_class(
+                executor_environment_loop
+            )
+        builder.store.system_executor = executor_environment_loop
+
+
+class JAXParallelExecutorEnvironmentLoop(ExecutorEnvironmentLoop):
+    def on_building_executor_environment_loop(self, builder: SystemBuilder) -> None:
+        """_summary_
+
+        Args:
+            builder : _description_
+        """
+        executor_environment_loop = JAXParallelEnvironmentLoop(
+            environment=builder.store.executor_environment,
+            executor=builder.store.executor,
+            logger=builder.store.executor_logger,
+            should_update=self.config.should_update,
+        )
+        del builder.store.executor_logger
+
+        if (
+            builder.store.executor_id == "evaluator"
+            and self.config.evaluator_stats_wrapper_class
+        ):
+            executor_environment_loop = self.config.evaluator_stats_wrapper_class(
+                executor_environment_loop
+            )
+        else:
+            if self.config.executor_stats_wrapper_class:
+                executor_environment_loop = self.config.executor_stats_wrapper_class(
+                    executor_environment_loop
+                )
 
         builder.store.system_executor = executor_environment_loop

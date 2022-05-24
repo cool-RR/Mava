@@ -17,6 +17,10 @@ from abc import abstractmethod
 from typing import Any, Iterator, List
 
 import dm_env
+import jax.numpy as jnp
+from chex import Array
+
+from mava.utils.id_utils import EntityId
 
 
 class ParallelEnvWrapper(dm_env.Environment):
@@ -59,3 +63,22 @@ class SequentialEnvWrapper(ParallelEnvWrapper):
         """
         Returns the current selected agent.
         """
+
+
+class EnvironmentModelWrapper(ParallelEnvWrapper):
+    """Abstract class for environment models used in MAMCTS"""
+
+    
+    @abstractmethod
+    def get_observation(self, environment_state, agent_info) -> Array:
+        """Returns an agent's observation given the environment state and an agents indentifying information"""
+
+    @abstractmethod
+    def get_possible_agents(self) -> List[EntityId]:
+        """Returns a list of all agent EntityID objects"""
+
+    def get_agent_mask(self, environment_state, agent_info) -> Array:
+        """Return an agent's current action mask - by default all actions are available
+            available actions are represented by zeros and invalid actions are represented by ones"""
+
+        return jnp.zeros((self.action_spec()[agent_info].num_values,),dtype=jnp.int32)

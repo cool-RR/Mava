@@ -148,7 +148,6 @@ class ParameterClient:
         """Asynchronously adds to server parameters."""
         if self._add_future is not None and self._add_future.done():
             self._add_future = None
-
         names = params.keys()
         if self._add_future is None:
             # The update period has been reached and no request has been sent yet, so
@@ -159,7 +158,7 @@ class ParameterClient:
                 for name in names:
                     self._async_add_buffer[name] += params[name]
 
-                raise NotImplementedError("Is the below line correct?")
+                # raise NotImplementedError("Is the below line correct?")
                 self._add_future = self._async_add(
                     params.keys(), self._async_add_buffer
                 )

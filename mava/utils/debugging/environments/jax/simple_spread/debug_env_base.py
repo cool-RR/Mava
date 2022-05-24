@@ -17,27 +17,37 @@
 # TODO (dries): Try using this class directly from PettingZoo and delete this file.
 # type: ignore
 import copy
+from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, List, Tuple, Union
 
 import gym
+import jax
+import jax.numpy as jnp
 import numpy as np
+from acme import specs
+from acme.wrappers.gym_wrapper import _convert_to_spec
 from gym import spaces
+from jax.random import PRNGKey
+from numpy import ndarray
 
-from mava.utils.debugging.core import Agent, World
-from mava.utils.id_utils import EntityId
-
-from .multi_discrete import MultiDiscrete
+from mava.utils.debugging.environments.jax.simple_spread.core import (
+    Action,
+    Agent,
+    EntityId,
+    JaxWorld,
+    step,
+)
+from mava.utils.debugging.multi_discrete import MultiDiscrete
 
 
 # environment for all agents in the multiagent world
 # currently code assumes that no agents will be created/destroyed at runtime!
-class MultiAgentEnv(gym.Env):
+class MultiAgentJaxEnvBase(gym.Env, ABC):
     metadata = {"render.modes": ["human", "rgb_array"]}
 
     def __init__(
         self,
-        world: World,
-        action_space: str,
+        world: JaxWorld,
         reset_callback: Callable = None,
         reward_callback: Callable = None,
         observation_callback: Callable = None,
@@ -46,40 +56,27 @@ class MultiAgentEnv(gym.Env):
         shared_viewer: bool = True,
     ) -> None:
 
-        self.world = world
+        self.dim_p = world.dim_p
+        # I don't see where this was being used, but it would be static here so no point in having it
+        # self.env_done = False
+
         # Generate IDs and convert agent list to dictionary format.
-        agent_dict = {}
-        self.env_done = False
         self.agent_ids = []
 
-        agent_list = self.world.policy_agents
-        for a_i in range(len(agent_list)):
-            agent_id = EntityId(id=a_i, type=0)
-            self.agent_ids.append(agent_id)
-            agent_dict[agent_id] = agent_list[a_i]
-
+        self.agent_ids = [
+            EntityId(id=a_i, type=0) for a_i in range(len(world.agents.size))
+        ]
         self.possible_agents = self.agent_ids
-
         self.num_agents = len(self.agent_ids)
-        self.agents = agent_dict
 
         # set required vectorized gym env property
-        self.n = len(world.policy_agents)
+        self.n = len(world.agents.size)
         # scenario callbacks
         self.reset_callback = reset_callback
         self.reward_callback = reward_callback
         self.observation_callback = observation_callback
         self.info_callback = info_callback
         self.done_callback = done_callback
-        # environment parameters
-        assert action_space in ["continuous", "discrete"]
-
-        self.discrete_action_space = action_space == "discrete"
-
-        # if true, action is a number 0...N, otherwise
-        # action is a one-hot N-dimensional vector
-        self.discrete_action_input = action_space == "discrete"
-        self.time = 0
 
         self.render_geoms: Union[List, None] = None
         self.render_geoms_xform: Union[List, None] = None
@@ -87,21 +84,16 @@ class MultiAgentEnv(gym.Env):
         # configure spaces
         self.action_spaces = {}
         self.observation_spaces = {}
-        for a_i, agent_id in enumerate(self.agent_ids):
-            agent = self.agents[agent_id]
+        for a_i in range(self.n):
+            agent_id = EntityId(id=a_i, type=0)
+            agent = jax.tree_map(lambda x: x[a_i], world.agents)
             total_action_space = []
             # physical action space
-            if self.discrete_action_space:
-                u_action_space = spaces.Discrete(world.dim_p * 2 + 1)
-            else:
-                u_action_space = spaces.Box(
-                    low=-agent.u_range,
-                    high=+agent.u_range,
-                    shape=(world.dim_p,),
-                    dtype=np.float32,
-                )
+            u_action_space = spaces.Discrete(self.dim_p * 2 + 1)
+
             if agent.movable:
                 total_action_space.append(u_action_space)
+
             # total action space
             if len(total_action_space) > 1:
                 # all action spaces are discrete, so simplify to
@@ -110,17 +102,19 @@ class MultiAgentEnv(gym.Env):
                     isinstance(act_space, spaces.Discrete)
                     for act_space in total_action_space
                 ):
+
                     act_space = MultiDiscrete(
                         [[0, act_space.n - 1] for act_space in total_action_space]
                     )
                 else:
+
                     act_space = spaces.Tuple(total_action_space)
                 self.action_spaces[agent_id] = act_space
             else:
                 self.action_spaces[agent_id] = total_action_space[0]
             # observation space
             if observation_callback is not None:
-                obs_dim = len(observation_callback(agent, a_i, self.world))
+                obs_dim = len(observation_callback(agent, a_i, world))
             else:
                 raise ValueError("Observation callback is None.")
             self.observation_spaces[agent_id] = spaces.Box(
@@ -135,150 +129,146 @@ class MultiAgentEnv(gym.Env):
         self._reset_render()
 
     def step(
-        self, action_n: Dict[str, Union[int, List[float]]]
+        self, world: JaxWorld, action_n: Dict[str, Union[int, List[float]]]
     ) -> Tuple[
-        Dict[str, Union[np.ndarray, Any]],
-        Union[dict, Dict[str, Union[float, Any]]],
-        Dict[str, Any],
-        Dict[str, dict],
+        JaxWorld,
+        Tuple[
+            Dict[EntityId, ndarray],
+            Dict[EntityId, float],
+            Dict[EntityId, bool],
+            ndarray,
+        ],
     ]:
         obs_n = {}
         reward_n = {}
         done_n = {}
+
+        processed_agents = []
         # set action for each agent
         for agent_id in self.agent_ids:
-            agent = self.agents[agent_id]
-            agent_action = copy.deepcopy(action_n[agent_id])
-            self._set_action(agent_action, agent, self.action_spaces[agent_id])
+            agent = jax.tree_map(lambda x: x[agent_id.id], world.agents)
+            # agent = world.agents[agent_id.id]
+            agent_action = self._process_action(action_n[agent_id], agent)
+            processed_agents.append(agent.replace(action=agent_action))
+
+        # stack pytrees
+        processed_agents = jax.tree_map(lambda *x: jnp.stack(x), *processed_agents)
+        # update world's agents with new actions
+        world = world.replace(agents=processed_agents)
         # advance world state
-        self.world.step()
+        world = step(world)
         # record observation for each agent
         for a_i, agent_id in enumerate(self.agent_ids):
-            agent = self.agents[agent_id]
-            obs_n[agent_id] = self._get_obs(a_i, agent)
-            reward_n[agent_id] = self._get_reward(a_i, agent)
-            done_n[agent_id] = self._get_done(agent)
+            agent = jax.tree_map(lambda x: x[agent_id.id], world.agents)
+            obs_n[agent_id] = self._get_obs(world, a_i, agent)
+            reward_n[agent_id] = self._get_reward(world, a_i, agent)
+            done_n[agent_id] = self._get_done(world, agent)
 
-            if done_n[agent_id]:
-                self.env_done = True
+        state_n = self._get_state(world)
 
-        state_n = self._get_state()
+        return world, (obs_n, reward_n, done_n, state_n)
 
-        return obs_n, reward_n, done_n, state_n
-
-    def reset(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    def reset(self, key: PRNGKey) -> Tuple[JaxWorld, Dict[str, Any], Dict[str, Any]]:
         # reset world
         if self.reset_callback is not None:
-            self.reset_callback(self.world)
+            world = self.reset_callback(key)
         else:
             raise ValueError("self.reset_callback is still None!")
         # reset renderer
         self._reset_render()
-        self.env_done = False
         # record observations for each agent
         obs_n = {}
         for a_i, agent_id in enumerate(self.agent_ids):
-            agent = self.agents[agent_id]
-            obs_n[agent_id] = self._get_obs(a_i, agent)
-        state_n = self._get_state()
-        return obs_n, {"env_states": state_n}
+            agent = jax.tree_map(lambda x: x[agent_id.id], world.agents)
+            obs_n[agent_id] = self._get_obs(world, a_i, agent)
+        state_n = self._get_state(world)
+        return world, obs_n, {"s_t": state_n}
 
     # get info used for benchmarking
-    def _get_info(self, agent: Agent) -> Dict:
+    def _get_info(self, world: JaxWorld, agent: Agent) -> Dict:
         if self.info_callback is None:
             return {}
-        return self.info_callback(agent, self.world)
+        return self.info_callback(agent, world)
 
     # get observation for a particular agent
-    def _get_obs(self, a_i: int, agent: Agent) -> np.ndarray:
+    def _get_obs(self, world: JaxWorld, a_i: int, agent: Agent) -> np.ndarray:
         if self.observation_callback is None:
-            return np.zeros(0)
+            return jnp.zeros(0)
         else:
-            return self.observation_callback(agent, a_i, self.world)
+            return self.observation_callback(agent, a_i, world)
 
     # get dones for a particular agent
     # unused right now -- agents are allowed to go beyond the viewing screen
-    def _get_done(self, agent: Agent) -> bool:
+    def _get_done(self, world: JaxWorld, agent: Agent) -> bool:
         if self.done_callback is None:
             raise ValueError("No done callback specified.")
-        return self.done_callback(agent, self.world)
+        return self.done_callback(agent, world)
 
     # get reward for a particular agent
-    def _get_reward(self, a_i: int, agent: Agent) -> float:
+    def _get_reward(self, world: JaxWorld, a_i: int, agent: Agent) -> float:
         if self.reward_callback is None:
             return 0.0
-        return self.reward_callback(agent, a_i, self.world)
+        return self.reward_callback(agent, a_i, world)
 
-    def _get_state(self) -> np.ndarray:
+    def _get_state(self, world: JaxWorld) -> np.ndarray:
         # get positions of all entities in this agent's reference frame
         entity_pos = []
-        for entity in self.world.landmarks:  # world.entities:
+        # for entity in world.landmarks:  # world.entities:
+        #     entity_pos.append(entity.state.p_pos)
+
+        for i in range(len(world.landmarks.size)):
+            entity = jax.tree_map(lambda x: x[i], world.landmarks)
             entity_pos.append(entity.state.p_pos)
         # entity colors
 
         agent_pos = []
         agent_vel = []
-        for i, agent in enumerate(self.world.agents):
+        for i in range(len(world.agents.size)):
+            agent = jax.tree_map(lambda x: x[i], world.agents)
             agent_pos.append(agent.state.p_pos)
             agent_vel.append(agent.state.p_vel)
 
-        return np.array(
-            np.concatenate(
-                [[self.world.current_step / 50]] + entity_pos + agent_pos + agent_vel
+        # for i, agent in enumerate(world.agents):
+        #     agent_pos.append(agent.state.p_pos)
+        #     agent_vel.append(agent.state.p_vel)
+
+        return jnp.array(
+            jnp.concatenate(
+                [jnp.array([world.current_step / 50])]
+                + entity_pos
+                + agent_pos
+                + agent_vel
             ),
             dtype=np.float32,
         )
 
     # set env action for a particular agent
-    def _set_action(
-        self,
-        action: np.ndarray,
-        agent: Agent,
-        action_space: spaces,
-    ) -> None:
-        agent.action.u = np.zeros(self.world.dim_p)
-        # process action
-        if isinstance(action_space, MultiDiscrete):
-            act = []
-            size = action_space.high - action_space.low + 1
-            index = 0
-            for s in size:
-                act.append(action[index : (index + s)])
-                index += s
-            action = act
-        else:
-            action = [action]
+    @abstractmethod
+    def _process_action(self, action: int, agent: Agent) -> Action:
+        agent.action.u = jnp.zeros(self.dim_p)
 
-        if agent.movable:
-            # physical action
-            if self.discrete_action_input:
-                agent.action.u = np.zeros(self.world.dim_p)
-                # process discrete action
-                if action[0] == 1:
-                    agent.action.u[0] = -1.0
-                if action[0] == 2:
-                    agent.action.u[0] = +1.0
-                if action[0] == 3:
-                    agent.action.u[1] = -1.0
-                if action[0] == 4:
-                    agent.action.u[1] = +1.0
-            else:
-                # if self.force_discrete_action:
-                #     d = np.argmax(action[0])
-                #     action[0][:] = 0.0
-                #     action[0][d] = 1.0
-                if self.discrete_action_space:
-                    agent.action.u[0] += action[0][1] - action[0][2]
-                    agent.action.u[1] += action[0][3] - action[0][4]
-                else:
-                    agent.action.u = action[0]
-            sensitivity = 5.0
-            if agent.accel is not None:
-                sensitivity = agent.accel
-            agent.action.u *= sensitivity
-            action = action[1:]
-        # make sure we used all elements of action
-        assert len(action) == 0
+        def on_movable(act: Action):
+            sensitivity = jax.lax.cond(
+                jnp.isnan(agent.accel), lambda: 5.0, lambda: agent.accel
+            )
+
+            return Action(
+                u=jnp.array(
+                    jax.lax.switch(
+                        act - 1,
+                        [
+                            lambda x: [-1.0, 0.0],
+                            lambda x: [1.0, 0.0],
+                            lambda x: [0.0, -1.0],
+                            lambda x: [0.0, 1.0],
+                        ],
+                        None,
+                    )
+                )
+                * sensitivity
+            )
+
+        return jax.lax.cond(agent.movable, on_movable, lambda _: agent.action, action)
 
     # reset rendering assets
     def _reset_render(self) -> None:
@@ -286,15 +276,14 @@ class MultiAgentEnv(gym.Env):
         self.render_geoms_xform = None
 
     # render environment
-    def render(self, mode: str = "human") -> List[np.ndarray]:
-
+    def render(self, world: JaxWorld, mode: str = "human") -> List[np.ndarray]:
         for i in range(len(self.viewers)):
             # create viewers (if necessary)
             if self.viewers[i] is None:
                 # import rendering only if we need it (and don't
                 # import for headless machines)
                 # from gym.envs.classic_control import rendering
-                from . import rendering
+                from mava.utils.debugging import rendering
 
                 self.viewers[i] = rendering.Viewer(700, 700)
 
@@ -303,17 +292,17 @@ class MultiAgentEnv(gym.Env):
             # import rendering only if we need it (and don't import
             # for headless machines)
             # from gym.envs.classic_control import rendering
-            from . import rendering
+            from mava.utils.debugging import rendering
 
             self.render_geoms = []
             self.render_geoms_xform = []
-            for entity in self.world.entities:
+            for entity in world.entities:
                 geom = rendering.make_circle(entity.size)
                 xform = rendering.Transform()
 
                 if entity.color is not None:
                     r, g, b = entity.color
-                    if "agent" in entity.name:
+                    if isinstance(entity, Agent):
                         geom.set_color(r, g, b, alpha=0.5)
                     else:
                         geom.set_color(r, g, b)
@@ -332,9 +321,12 @@ class MultiAgentEnv(gym.Env):
             # update bounds to center around agent
             cam_range = 1
             if self.shared_viewer:
-                pos = np.zeros(self.world.dim_p)
+                pos = np.zeros(world.dim_p)
             else:
-                pos = self.agents[self.agent_ids[i]].state.p_pos
+                agent_id = self.agent_ids[i]
+                pos = world.agents[
+                    int(agent_id.split("_")[1])
+                ]  # self.agents[self.agent_ids[i]].state.p_pos
             self.viewers[i].set_bounds(
                 pos[0] - cam_range,
                 pos[0] + cam_range,
@@ -343,7 +335,7 @@ class MultiAgentEnv(gym.Env):
             )
             # update geometry positions
             if self.render_geoms_xform is not None:
-                for e, entity in enumerate(self.world.entities):
+                for e, entity in enumerate(world.entities):
                     self.render_geoms_xform[e].set_translation(*entity.state.p_pos)
             else:
                 raise ValueError("self.render_geoms_xform is still None!")

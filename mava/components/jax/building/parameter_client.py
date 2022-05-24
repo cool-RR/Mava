@@ -58,50 +58,53 @@ class ExecutorParameterClient(BaseParameterClient):
 
         self.config = config
 
-    # TODO (sasha) move to own component
     def on_building_executor_parameter_client(self, builder: SystemBuilder) -> None:
         """_summary_
 
         Args:
             builder : _description_
         """
-        parameter_clients = []
-        for net_level_key in ["hl", "ll"]:
-            # Create policy parameters
-            params = {}
-            get_keys = []
-            net_type_key = "networks"
-            for agent_net_key in builder.store.networks[net_type_key].keys():
-                # Executor gets both high level and low level params
-                param_key = f"{net_type_key}-{agent_net_key}-{net_level_key}"
-                params[param_key] = builder.store.networks[net_type_key][agent_net_key][
-                    net_level_key
-                ].params
-                get_keys.append(param_key)
+        # Create policy parameters
+        params = {}
+        get_keys = []
+        net_type_key = "networks"
+        for agent_net_key in builder.store.networks[net_type_key].keys():
+            param_key = f"{net_type_key}-{agent_net_key}"
+            params[param_key] = builder.store.networks[net_type_key][
+                agent_net_key
+            ].params
+            get_keys.append(param_key)
 
-            count_names, params = self._set_up_count_parameters(params=params)
-            get_keys.extend(count_names)
+        count_names, params = self._set_up_count_parameters(params=params)
 
-            builder.store.executor_counts = {name: params[name] for name in count_names}
+        get_keys.extend(count_names)
 
-            parameter_client = None
-            if builder.store.parameter_server_client:
-                # Create parameter client
-                parameter_client = ParameterClient(
-                    client=builder.store.parameter_server_client[net_level_key],
-                    parameters=params,
-                    get_keys=get_keys,
-                    set_keys=[],
-                    update_period=self.config.executor_parameter_update_period,
-                )
+        builder.store.executor_counts = {name: params[name] for name in count_names}
 
-                # Make sure not to use a random policy after checkpoint restoration by
-                # assigning parameters before running the environment loop.
-                parameter_client.get_and_wait()
+        set_keys = get_keys.copy()
 
-            parameter_clients.append(parameter_client)
+        # Executors should only be able to update relevant params.
+        if builder.store.is_evaluator is True:
+            set_keys = [x for x in set_keys if x.startswith("evaluator")]
+        else:
+            set_keys = [x for x in set_keys if x.startswith("executor")]
 
-        builder.store.executor_parameter_client = parameter_clients
+        parameter_client = None
+        if builder.store.parameter_server_client:
+            # Create parameter client
+            parameter_client = ParameterClient(
+                client=builder.store.parameter_server_client,
+                parameters=params,
+                get_keys=get_keys,
+                set_keys=set_keys,
+                update_period=self.config.executor_parameter_update_period,
+            )
+
+            # Make sure not to use a random policy after checkpoint restoration by
+            # assigning parameters before running the environment loop.
+            parameter_client.get_and_wait()
+
+        builder.store.executor_parameter_client = parameter_client
 
     @staticmethod
     def name() -> str:
@@ -148,18 +151,16 @@ class TrainerParameterClient(BaseParameterClient):
         get_keys = []
         # TODO (dries): Only add the networks this trainer is working with.
         # Not all of them.
-        # TODO (sasha): move this to own component
         trainer_networks = builder.store.trainer_networks[builder.store.trainer_id]
         for net_type_key in builder.store.networks.keys():
             for net_key in builder.store.networks[net_type_key].keys():
-                param_key = f"{net_type_key}-{net_key}-{builder.store.net_level_key}"
-                params[param_key] = builder.store.networks[net_type_key][net_key][
-                    builder.store.net_level_key
-                ].params
+                params[f"{net_type_key}-{net_key}"] = builder.store.networks[
+                    net_type_key
+                ][net_key].params
                 if net_key in set(trainer_networks):
-                    set_keys.append(param_key)
+                    set_keys.append(f"{net_type_key}-{net_key}")
                 else:
-                    get_keys.append(param_key)
+                    get_keys.append(f"{net_type_key}-{net_key}")
 
         # Add the optimizers to the variable server.
         # TODO (dries): Adjust this if using policy and critic optimizers.

@@ -13,15 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Jax MAPPO system networks."""
+"""Jax MAMCTS system networks."""
 import dataclasses
+import functools
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import haiku as hk  # type: ignore
 import jax
 import jax.numpy as jnp
 import numpy as np
-import tensorflow_probability.substrates.jax.distributions as tfd
 from acme import specs
 from acme.jax import networks as networks_lib
 from acme.jax import utils
@@ -37,79 +37,89 @@ EntropyFn = Callable[[Any], jnp.ndarray]
 
 
 @dataclasses.dataclass
-class PPONetworks:
+class MAMCTSNetworks:
     """TODO: Add description here."""
 
     def __init__(
         self,
         network: networks_lib.FeedForwardNetwork,
         params: networks_lib.Params,
-        log_prob: Optional[networks_lib.LogProbFn] = None,
-        entropy: Optional[EntropyFn] = None,
-        sample: Optional[networks_lib.SampleFn] = None,
     ) -> None:
         """TODO: Add description here."""
         self.network = network
         self.params = params
-        self.log_prob = log_prob
-        self.entropy = entropy
-        self.sample = sample
 
         @jit
         def forward_fn(
             params: Dict[str, jnp.ndarray],
             observations: networks_lib.Observation,
-            key: networks_lib.PRNGKey,
-            mask: Array = None,
+            key: networks_lib.PRNGKey
         ) -> Tuple[jnp.ndarray, jnp.ndarray]:
             """TODO: Add description here."""
             # The parameters of the network might change. So it has to
             # be fed into the jitted function.
-            distribution, _ = self.network.apply(params, observations)
-            if mask is not None:
-                distribution_logits = jnp.where(
-                    mask.astype(bool),
-                    distribution.logits,
-                    jnp.finfo(distribution.logits.dtype).min,
-                )
-                distribution = tfd.Categorical(logits=distribution_logits)
+            logits, value = self.network.apply(params, observations)
 
-            actions = jax.numpy.squeeze(distribution.sample(seed=key))
-            log_prob = distribution.log_prob(actions)
-
-            return actions, log_prob
+            return logits, value
 
         self.forward_fn = forward_fn
 
-    def get_action(
-        self,
-        observations: networks_lib.Observation,
-        key: networks_lib.PRNGKey,
-        mask: Array = None,
-    ) -> Tuple[np.ndarray, Dict]:
+    def get_logits(self, observations: networks_lib.Observation) -> jnp.ndarray:
         """TODO: Add description here."""
-        actions, log_prob = self.forward_fn(self.params, observations, key, mask)
-        actions = jnp.array(actions, dtype=jnp.int32)
-        log_prob = jnp.squeeze(log_prob)
-        return actions, {"log_prob": log_prob}
+        logits, _ = self.forward_fn(self.params, observations)
+
+        return logits
 
     def get_value(self, observations: networks_lib.Observation) -> jnp.ndarray:
         """TODO: Add description here."""
-        _, value = self.network.apply(self.params, observations)
+        _, value = self.forward_fn(self.params, observations)
         return value
 
+    def get_logits_and_value(
+        self, observations: networks_lib.Observation
+    ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+        """TODO: Add description here."""
+        logits, value = self.forward_fn(self.params, observations)
+        return logits, value
 
-def make_ppo_network(
-    network: networks_lib.FeedForwardNetwork, params: Dict[str, jnp.ndarray]
-) -> PPONetworks:
+
+def make_mcts_network(
+    network: networks_lib.FeedForwardNetwork,
+    params: Dict[str, jnp.ndarray],
+) -> MAMCTSNetworks:
     """TODO: Add description here."""
-    return PPONetworks(
+    return MAMCTSNetworks(
         network=network,
         params=params,
-        log_prob=lambda distribution, action: distribution.log_prob(action),
-        entropy=lambda distribution: distribution.entropy(),
-        sample=lambda distribution, key: distribution.sample(seed=key),
     )
+
+
+def make_networks(
+    spec: specs.EnvironmentSpec,
+    key: networks_lib.PRNGKey,
+    policy_layer_sizes: Sequence[int] = (
+        256,
+        256,
+        256,
+    ),
+    critic_layer_sizes: Sequence[int] = (512, 512, 256),
+    observation_network=utils.batch_concat,
+) -> MAMCTSNetworks:
+    """TODO: Add description here."""
+    if isinstance(spec.actions, specs.DiscreteArray):
+        return make_discrete_networks(
+            environment_spec=spec,
+            key=key,
+            policy_layer_sizes=policy_layer_sizes,
+            critic_layer_sizes=critic_layer_sizes,
+            observation_network=observation_network
+        )
+    else:
+        raise NotImplementedError(
+            "Continuous networks not implemented yet."
+            + "See: https://github.com/deepmind/acme/blob/"
+            + "master/acme/agents/jax/ppo/networks.py"
+        )
 
 
 def make_discrete_networks(
@@ -117,8 +127,8 @@ def make_discrete_networks(
     key: networks_lib.PRNGKey,
     policy_layer_sizes: Sequence[int],
     critic_layer_sizes: Sequence[int],
-    observation_network: Callable = utils.batch_concat,  # default behaviour is to flatten observations
-) -> PPONetworks:
+    observation_network=utils.batch_concat,
+) -> MAMCTSNetworks:
     """TODO: Add description here."""
 
     num_actions = environment_spec.actions.num_values
@@ -147,36 +157,10 @@ def make_discrete_networks(
     params = forward_fn.init(network_key, dummy_obs)  # type: ignore
 
     # Create PPONetworks to add functionality required by the agent.
-    return make_ppo_network(network=forward_fn, params=params)
-
-
-def make_networks(
-    spec: specs.EnvironmentSpec,
-    key: networks_lib.PRNGKey,
-    policy_layer_sizes: Sequence[int] = (
-        256,
-        256,
-        256,
-    ),
-    critic_layer_sizes: Sequence[int] = (512, 512, 256),
-    observation_network: Callable = utils.batch_concat,
-) -> PPONetworks:
-    """TODO: Add description here."""
-    if isinstance(spec.actions, specs.DiscreteArray):
-        return make_discrete_networks(
-            environment_spec=spec,
-            key=key,
-            policy_layer_sizes=policy_layer_sizes,
-            critic_layer_sizes=critic_layer_sizes,
-            observation_network=observation_network,
-        )
-
-    else:
-        raise NotImplementedError(
-            "Continuous networks not implemented yet."
-            + "See: https://github.com/deepmind/acme/blob/"
-            + "master/acme/agents/jax/ppo/networks.py"
-        )
+    return make_mcts_network(
+        network=forward_fn,
+        params=params,
+    )
 
 
 def make_default_networks(
@@ -190,7 +174,7 @@ def make_default_networks(
         256,
     ),
     critic_layer_sizes: Sequence[int] = (512, 512, 256),
-    observation_network: Callable = utils.batch_concat,
+    observation_network=utils.batch_concat,
 ) -> Dict[str, Any]:
     """Description here"""
 
