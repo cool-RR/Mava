@@ -44,3 +44,7 @@ class EntityId:
             raise TypeError(
                 f"Attempted to convert a non-string type: {type(entity_str)}"
             )
+
+    @staticmethod
+    def first():
+        return EntityId(id=0, type=0)

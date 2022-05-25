@@ -23,8 +23,11 @@ from absl import app, flags
 
 from mava.systems.jax import hrl, mappo
 from mava.systems.jax.hrl.dummy_env import DummyEnv
+from mava.systems.jax.hrl.hrl_debug_env import HrlDebugEnvWrapper
 from mava.utils.environments import debugging_utils
+from mava.utils.id_utils import EntityId
 from mava.utils.loggers import logger_utils
+from jumanji.pcb_grid import PcbGridEnv
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string(
@@ -52,9 +55,8 @@ def main(_: Any) -> None:
     Args:
         _ : _
     """
-
     def make_env(**kwargs):
-        return DummyEnv()
+        return HrlDebugEnvWrapper(PcbGridEnv(5, 5, 1))
 
     # Networks.
     def network_factory(*args: Any, **kwargs: Any) -> Any:
@@ -87,6 +89,7 @@ def main(_: Any) -> None:
     # Create the system.
     system = hrl.HrlSystem()
     # Build the system.
+
     system.build(
         environment_factory=make_env,
         network_factory=network_factory,

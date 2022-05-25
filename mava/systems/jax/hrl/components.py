@@ -29,6 +29,13 @@ class HrlExecutorParameterClient(ExecutorParameterClient):
 
             builder.store.executor_counts = {name: params[name] for name in count_names}
 
+            set_keys = get_keys.copy()
+            # Executors should only be able to update relevant params.
+            if builder.store.is_evaluator is True:
+                set_keys = [x for x in set_keys if x.startswith("evaluator")]
+            else:
+                set_keys = [x for x in set_keys if x.startswith("executor")]
+
             parameter_client = None
             if builder.store.parameter_server_client:
                 # Create parameter client
@@ -36,7 +43,7 @@ class HrlExecutorParameterClient(ExecutorParameterClient):
                     client=builder.store.parameter_server_client[net_level_key],
                     parameters=params,
                     get_keys=get_keys,
-                    set_keys=[],
+                    set_keys=set_keys,  # why do executors need to set any params?
                     update_period=self.config.executor_parameter_update_period,
                 )
 

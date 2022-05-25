@@ -8,6 +8,7 @@ from dm_env._environment import TimeStep
 
 from mava.systems.jax.hrl.hrl_wrapper import HrlEnvironmentWrapper
 from mava.types import OLT
+from mava.utils.id_utils import EntityId
 from mava.utils.wrapper_utils import parameterized_restart
 
 
@@ -102,13 +103,13 @@ class DummyEnv(HrlEnvironmentWrapper):
         return {
             "hl": {
                 agent: specs.DiscreteArray(
-                    num_values=self.hl_num_actions, dtype=np.int64
+                    num_values=self.hl_num_actions, dtype=np.int32
                 )
                 for agent in self.possible_agents
             },
             "ll": {
                 agent: specs.DiscreteArray(
-                    num_values=self.ll_num_actions, dtype=np.int64
+                    num_values=self.ll_num_actions, dtype=np.int32
                 )
                 for agent in self.possible_agents
             },
@@ -134,11 +135,11 @@ class DummyEnv(HrlEnvironmentWrapper):
 
     @property
     def possible_agents(self) -> List:
-        return [f"agent_{i}" for i in range(self.num_agents)]
+        return [EntityId(type=0, id=i) for i in range(self.num_agents)]
 
     @property
     def agents(self) -> List:
-        return [f"agent_{i}" for i in range(self.num_agents)]
+        return [EntityId(type=0, id=i) for i in range(self.num_agents)]
 
     def env_done(self) -> bool:
         return self.t < 50
