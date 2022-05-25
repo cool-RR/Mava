@@ -68,7 +68,6 @@ class SequentialEnvWrapper(ParallelEnvWrapper):
 class EnvironmentModelWrapper(ParallelEnvWrapper):
     """Abstract class for environment models used in MAMCTS"""
 
-    
     @abstractmethod
     def get_observation(self, environment_state, agent_info) -> Array:
         """Returns an agent's observation given the environment state and an agents indentifying information"""
@@ -79,6 +78,6 @@ class EnvironmentModelWrapper(ParallelEnvWrapper):
 
     def get_agent_mask(self, environment_state, agent_info) -> Array:
         """Return an agent's current action mask - by default all actions are available
-            available actions are represented by zeros and invalid actions are represented by ones"""
+        available actions are represented by zeros and invalid actions are represented by ones"""
 
-        return jnp.zeros((self.action_spec()[agent_info].num_values,),dtype=jnp.int32)
+        return jnp.zeros((self.action_spec()[agent_info].num_values,), dtype=jnp.int32)

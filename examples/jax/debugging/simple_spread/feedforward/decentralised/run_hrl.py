@@ -20,14 +20,13 @@ from typing import Any
 
 import optax
 from absl import app, flags
+from pcb_mava.pcb_grid_utils import make_hrl_env
 
 from mava.systems.jax import hrl, mappo
 from mava.systems.jax.hrl.dummy_env import DummyEnv
-from mava.systems.jax.hrl.hrl_debug_env import HrlDebugEnvWrapper
 from mava.utils.environments import debugging_utils
 from mava.utils.id_utils import EntityId
 from mava.utils.loggers import logger_utils
-from jumanji.pcb_grid import PcbGridEnv
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string(
@@ -56,7 +55,7 @@ def main(_: Any) -> None:
         _ : _
     """
     def make_env(**kwargs):
-        return HrlDebugEnvWrapper(PcbGridEnv(5, 5, 1))
+        return make_hrl_env(size=5, num_agents=1, **kwargs)
 
     # Networks.
     def network_factory(*args: Any, **kwargs: Any) -> Any:

@@ -635,13 +635,15 @@ class JAXParallelEnvironmentLoop(acme.core.Worker):
         # Internalize agent and environment.
         self._environment = environment
 
-        self.jitted_reset_fn = jax.jit(chex.assert_max_traces(self._environment.reset,1))
-        self.jitted_step_fn = jax.jit(chex.assert_max_traces(self._environment.step,1))
+        self.jitted_reset_fn = jax.jit(
+            chex.assert_max_traces(self._environment.reset, 1)
+        )
+        self.jitted_step_fn = jax.jit(chex.assert_max_traces(self._environment.step, 1))
 
         self._executor = executor
         self._counter = counter or counting.Counter()
         self._logger = logger or loggers.make_default_logger(label)
-    
+
         self._should_update = should_update
         self._running_statistics: Dict[str, float] = {}
 

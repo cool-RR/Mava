@@ -157,5 +157,3 @@ mava_testing
 .idea/
 
 meltingpot/
-
-mava/systems/jax/hrl/hrl_debug_env.py

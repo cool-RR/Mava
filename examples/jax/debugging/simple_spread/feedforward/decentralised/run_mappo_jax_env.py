@@ -18,11 +18,11 @@ import functools
 from datetime import datetime
 from typing import Any
 
-import jax
 import haiku as hk
-from acme.jax.networks.atari import DeepAtariTorso
+import jax
 import optax
 from absl import app, flags
+from acme.jax.networks.atari import DeepAtariTorso
 
 from mava.components.jax.building.environments import JAXParallelExecutorEnvironmentLoop
 from mava.systems.jax import mappo

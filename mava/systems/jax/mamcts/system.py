@@ -22,6 +22,7 @@ from mava.systems.jax import System
 from mava.systems.jax.mamcts.components import ExtraSearchPolicySpec
 from mava.systems.jax.mamcts.config import MAMCTSDefaultConfig
 
+
 class MAMCTSSystem(System):
     def design(self) -> Tuple[DesignSpec, Any]:
         """Mock system design with zero components.
