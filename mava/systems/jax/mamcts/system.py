@@ -19,7 +19,8 @@ from typing import Any, Tuple
 from mava.components.jax import building, executing, training, updating
 from mava.specs import DesignSpec
 from mava.systems.jax import System
-from mava.systems.jax.mamcts.components import ExtraSearchPolicySpec
+from mava.systems.jax.mamcts.components import ExtraSearchPolicySpec, \
+    LRFDecayingFeedforwardExecutorObserve, EpisodeCountingExecutorInit
 from mava.systems.jax.mamcts.config import MAMCTSDefaultConfig
 
 class MAMCTSSystem(System):
@@ -42,8 +43,8 @@ class MAMCTSSystem(System):
         # Default system processes
         # Executor
         executor_process = DesignSpec(
-            executor_init=executing.ExecutorInit,
-            executor_observe=executing.FeedforwardExecutorObserve,
+            executor_init=EpisodeCountingExecutorInit,
+            executor_observe=LRFDecayingFeedforwardExecutorObserve,
             executor_select_action=executing.MCTSFeedforwardExecutorSelectAction,
             executor_adder=building.ParallelSequenceAdder,
             executor_environment_loop=building.JAXParallelExecutorEnvironmentLoop,

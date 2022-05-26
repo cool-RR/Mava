@@ -17,10 +17,13 @@
 from dataclasses import dataclass
 
 import jax.numpy as jnp
+import optax
 from dm_env import specs
 
 from mava.components.jax import Component
-from mava.core_jax import SystemBuilder
+from mava.components.jax.executing import FeedforwardExecutorObserve, ExecutorInit
+from mava.components.jax.executing.observing import ExecutorObserveConfig
+from mava.core_jax import SystemBuilder, SystemExecutor
 
 
 @dataclass
@@ -70,3 +73,45 @@ class ExtraSearchPolicySpec(Component):
     @staticmethod
     def config_class():
         return ExtraSearchPolicySpecConfig
+
+
+@dataclass
+class LRFDecayExecutorObserveConfig(ExecutorObserveConfig):
+    reward_factor_start: float = 1.0
+    reward_factor_end: float = 0.5
+    reward_factor_decay_episodes: int = int(5e5)
+
+
+class LRFDecayingFeedforwardExecutorObserve(FeedforwardExecutorObserve):
+    """Executor that also decays the local reward factor of the env at the start of each episode"""
+
+    # Observe first
+    def __init__(
+        self, config: LRFDecayExecutorObserveConfig = LRFDecayExecutorObserveConfig()
+    ):
+        super().__init__(config)
+
+        self.sch = optax.linear_schedule(
+            config.reward_factor_start,
+            config.reward_factor_end,
+            config.reward_factor_decay_episodes,
+        )
+
+    def on_execution_observe_first(self, executor: SystemExecutor) -> None:
+        super().on_execution_observe_first(executor)
+
+        executor.store.system_executor._environment.local_reward_factor = self.sch(
+            executor.store.num_episodes
+        )
+
+        executor.store.num_episodes += 1
+
+        # print("LRF!", executor.store.system_executor._environment.local_reward_factor)
+
+    @staticmethod
+    def config_class():
+        return LRFDecayExecutorObserveConfig
+
+class EpisodeCountingExecutorInit(ExecutorInit):
+    def on_execution_init_end(self, executor: SystemExecutor):
+        executor.store.num_episodes = 0

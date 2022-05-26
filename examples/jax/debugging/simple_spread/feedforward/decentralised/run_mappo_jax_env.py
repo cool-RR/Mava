@@ -26,9 +26,11 @@ from absl import app, flags
 
 from mava.components.jax.building.environments import JAXParallelExecutorEnvironmentLoop
 from mava.systems.jax import mappo
-from mava.utils.debugging.environments.jax.debug_env.new_debug_env import DebugEnv
+# from mava.utils.debugging.environments.jax.debug_env.new_debug_env import DebugEnv
 from mava.utils.loggers import logger_utils
-from mava.wrappers.JaxDebugEnvWrapper import DebugEnvWrapper
+# from mava.wrappers.JaxDebugEnvWrapper import DebugEnvWrapper
+
+from mava_exps.environments.jax_pcb_grid_env.jax_pcb_grid_env_utils import make_environment
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string(
@@ -50,18 +52,18 @@ flags.DEFINE_string(
 flags.DEFINE_string("base_dir", "~/mava", "Base dir to store experiments.")
 
 
-def make_environment(rows=6, cols=6, evaluation: bool = None, num_agents: int = 1):
-
-    return DebugEnvWrapper(
-        DebugEnv(
-            rows,
-            cols,
-            num_agents,
-            reward_for_connection=1.0,
-            reward_for_blocked=-1.0,
-            reward_per_timestep=-1.0 / (rows + cols),
-        )
-    )
+# def make_environment(rows=6, cols=6, evaluation: bool = None, num_agents: int = 1):
+#
+#     return DebugEnvWrapper(
+#         DebugEnv(
+#             rows,
+#             cols,
+#             num_agents,
+#             reward_for_connection=1.0,
+#             reward_for_blocked=-1.0,
+#             reward_per_timestep=-1.0 / (rows + cols),
+#         )
+#     )
 
 
 def network_factory(
