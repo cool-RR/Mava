@@ -21,6 +21,8 @@ from typing import Any
 import optax
 from absl import app, flags
 
+from pcb_mava.pcb_grid_utils import make_environment
+
 from mava.systems.jax import mappo
 from mava.utils.environments import debugging_utils
 from mava.utils.loggers import logger_utils
@@ -52,10 +54,16 @@ def main(_: Any) -> None:
         _ : _
     """
     # Environment.
+    # environment_factory = functools.partial(
+    #     debugging_utils.make_environment,
+    #     env_name=FLAGS.env_name,
+    #     action_space=FLAGS.action_space,
+    # )
+
     environment_factory = functools.partial(
-        debugging_utils.make_environment,
-        env_name=FLAGS.env_name,
-        action_space=FLAGS.action_space,
+        make_environment,
+        size=5,
+        num_agents=1,
     )
 
     # Networks.

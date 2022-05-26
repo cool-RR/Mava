@@ -1,5 +1,9 @@
+import numpy as np
+from acme.jax import savers
+
 from mava.components.jax.building import ExecutorParameterClient, TrainerParameterClient
-from mava.core_jax import SystemBuilder
+from mava.components.jax.updating import DefaultParameterServer
+from mava.core_jax import SystemBuilder, SystemParameterServer
 from mava.systems.jax import ParameterClient
 
 
@@ -108,3 +112,55 @@ class HrlTrainerParameterClient(TrainerParameterClient):
             parameter_client.get_all_and_wait()
 
         builder.store.trainer_parameter_client = parameter_client
+
+
+class HrlParameterServer(DefaultParameterServer):
+
+    def on_parameter_server_init_start(self, server: SystemParameterServer) -> None:
+        """_summary_
+
+        Args:
+            server : _description_
+        """
+
+        server.store.non_blocking_sleep_seconds = self.config.non_blocking_sleep_seconds
+        networks = server.store.network_factory()
+
+        # # Create parameters
+        server.store.parameters = {
+            "trainer_steps": np.zeros(1, dtype=np.int32),
+            "trainer_walltime": np.zeros(1, dtype=np.float32),
+            "evaluator_steps": np.zeros(1, dtype=np.int32),
+            "evaluator_episodes": np.zeros(1, dtype=np.int32),
+            "executor_episodes": np.zeros(1, dtype=np.int32),
+            "executor_steps": np.zeros(1, dtype=np.int32),
+        }
+
+        # Network parameters
+        for net_type_key in networks.keys():
+            for agent_net_key in networks[net_type_key].keys():
+                # Ensure obs and target networks are sonnet modules
+                param_key = (
+                    f"{net_type_key}-{agent_net_key}-{server.store.net_level_key}"
+                )
+                server.store.parameters[param_key] = networks[
+                    net_type_key
+                ][agent_net_key][server.store.net_level_key].params
+
+        # Create the checkpointer
+        if self.config.checkpoint:
+            server.store.last_checkpoint_time = 0
+            server.store.checkpoint_minute_interval = (
+                self.config.checkpoint_minute_interval
+            )
+
+            # Only save variables that are not empty.
+            save_variables = {}
+            for key in server.store.parameters.keys():
+                var = server.store.parameters[key]
+                # Don't store empty tuple (e.g. empty observation_network) variables
+                if not (type(var) == tuple and len(var) == 0):
+                    save_variables[key] = var
+            server.store.system_checkpointer = savers.Checkpointer(
+                save_variables, self.config.checkpoint_subpath, time_delta_minutes=0
+            )

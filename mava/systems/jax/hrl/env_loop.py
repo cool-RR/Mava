@@ -164,12 +164,17 @@ class HrlParallelEnvironmentLoop(ParallelEnvironmentLoop):
             rewards.update({agent: generate_zeros_from_spec(spec)})
             episode_returns.update({agent: generate_zeros_from_spec(spec)})
 
+        action_counts = {i: 0 for i in range(5)}
         # Run an episode.
         while not timestep.last():
             env_actions = self._get_actions(ll_timestep)
+            # env_actions = hl_actions
+
             timestep = self._environment.step(env_actions)
             timestep, env_extras = self.get_extras(timestep)
             rewards = timestep.reward
+
+            action_counts[env_actions['id-0-type-0'].item()] += 1
 
             # Have the agent observe the timestep and let the actor update itself.
             ll_timestep, hl_actions = self.observe(
@@ -205,6 +210,7 @@ class HrlParallelEnvironmentLoop(ParallelEnvironmentLoop):
             episode_steps,
             start_time,
         )
+
         if self._get_running_stats():
             return self._get_running_stats()
         else:

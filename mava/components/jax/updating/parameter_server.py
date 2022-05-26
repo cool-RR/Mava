@@ -65,13 +65,9 @@ class DefaultParameterServer(Component):
         for net_type_key in networks.keys():
             for agent_net_key in networks[net_type_key].keys():
                 # Ensure obs and target networks are sonnet modules
-                param_key = (
-                    f"{net_type_key}-{agent_net_key}-{server.store.net_level_key}"
-                )
-                server.store.parameters[param_key] = networks[
+                server.store.parameters[f"{net_type_key}-{agent_net_key}"] = networks[
                     net_type_key
-                    # TODO (sasha): move to own component
-                ][agent_net_key][server.store.net_level_key].params
+                ][agent_net_key].params
 
         # Create the checkpointer
         if self.config.checkpoint:
