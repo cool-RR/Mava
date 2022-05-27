@@ -14,18 +14,22 @@
 # limitations under the License.
 
 """Execution components for system builders"""
-
+import functools
 from dataclasses import dataclass
 from typing import Any, Callable, Dict
 
 import acme.jax.utils as utils
+import chex
 import jax
 import numpy as np
+import jax.numpy as jnp
 from acme.jax import utils
 
 from mava.components.jax import Component
 from mava.core_jax import SystemExecutor
 from mava.systems.jax.mamcts.mcts import MCTS, MaxDepth, RecurrentFn, RootFn, TreeSearch
+from mava.utils import tree_utils
+from mava.utils.id_utils import EntityId
 
 
 @dataclass
@@ -50,6 +54,7 @@ class FeedforwardExecutorSelectAction(Component):
         """Summary"""
         executor.store.actions_info = {}
         executor.store.policies_info = {}
+
         for agent, observation in executor.store.observations.items():
             action_info, policy_info = executor.select_action(agent, observation)
             executor.store.actions_info[agent] = action_info
@@ -117,29 +122,92 @@ class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
 
         self.mcts = MCTS(self.config)
 
-    # TODO figure out how to pass agent ids since it is a string
-    # Select action
-    def on_execution_select_action_compute(self, executor: SystemExecutor) -> None:
+    def on_execution_select_actions(self, executor: SystemExecutor) -> None:
         """Summary"""
+        executor.store.actions_info = {}
+        executor.store.policies_info = {}
 
-        agent = executor.store.agent
-        network = executor.store.networks["networks"][
-            executor.store.agent_net_keys[agent]
+        num_agents = len(executor.store.observations)
+        # Store agent_ids, observations and params in stacked pytrees in the same order
+        # ie observations[0] belongs to agent with id agent_ids[0] with params = params[0]
+        agent_ids = list(executor.store.observations.keys())
+        observations = [
+            executor.store.observations[agent_id].observation for agent_id in agent_ids
         ]
+        params = [
+            executor.store.networks["networks"][
+                executor.store.agent_net_keys[agent_id]
+            ].params
+            for agent_id in agent_ids
+        ]
+        stacked_agent_ids = tree_utils.stack_trees(agent_ids)
+        params = tree_utils.stack_trees(params)
+        observations = tree_utils.stack_trees(observations)
 
-        rng_key, executor.store.key = jax.random.split(executor.store.key)
+        # Selecting the first net function from networks, this assumes that all agents have the
+        # same network. It seems as it is not possible to do this for agents with different networks
+        # as functions are not jittable and cannot be put into jnp arrays
+        net = executor.store.networks["networks"][
+            executor.store.agent_net_keys[EntityId.first()]
+        ].network
 
-        observation = utils.add_batch_dim(executor.store.observation.observation)
+        def forward_fn(observations, params, key):
+            return net.apply(params, observations)
 
-        executor.store.action_info, executor.store.policy_info = self.mcts.get_action(
-            network.forward_fn,
-            network.params,
+        action_infos, policy_infos = jax.vmap(
+            functools.partial(
+                self.vmappable_select_action,
+                forward_fn=forward_fn,
+                rng_key=jax.random.PRNGKey(0),
+                executor=executor,
+            )
+        )(params=params, observation=observations, agent=stacked_agent_ids)
+
+        for agent_id in agent_ids:
+            i = agent_id.index(num_agents)
+            # TODO (sasha): should this also be `index_stacked_tree`?
+            executor.store.actions_info[agent_id] = action_infos[i]
+            executor.store.policies_info[agent_id] = tree_utils.index_stacked_tree(
+                policy_infos, i
+            )
+
+    def vmappable_select_action(
+        self, params, forward_fn, observation, rng_key, executor, agent
+    ):
+        observation = utils.add_batch_dim(observation)
+
+        return self.mcts.get_action(
+            forward_fn,
+            params,
             rng_key,
             executor.store.environment_state,
             observation,
             agent,
             executor.store.is_evaluator,
         )
+
+    # # Select action
+    # def on_execution_select_action_compute(self, executor: SystemExecutor) -> None:
+    #     """Summary"""
+    #
+    #     agent = executor.store.agent
+    #     network = executor.store.networks["networks"][
+    #         executor.store.agent_net_keys[agent]
+    #     ]
+    #
+    #     rng_key, executor.store.key = jax.random.split(executor.store.key)
+    #
+    #     observation = utils.add_batch_dim(executor.store.observation.observation)
+    #
+    #     executor.store.action_info, executor.store.policy_info = self.mcts.get_action(
+    #         network.forward_fn,
+    #         network.params,
+    #         rng_key,
+    #         executor.store.environment_state,
+    #         observation,
+    #         agent,
+    #         executor.store.is_evaluator,
+    #     )
 
     @staticmethod
     def config_class() -> Callable:

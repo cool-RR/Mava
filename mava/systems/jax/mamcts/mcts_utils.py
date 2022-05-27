@@ -213,16 +213,25 @@ def greedy_policy_recurrent_fn(discount_gamma=0.99) -> Callable:
 
         prior_logits = _mask_invalid_actions(prior_logits.logits, agent_mask)
 
-        reward = timestep.reward[agent_info].reshape(
-            1,
-        )
+        num_agents = len(timestep.reward)
 
-        discount = (
-            timestep.discount[agent_info].reshape(
-                1,
+        # sort and place items in list
+        # TODO (sasha): this should be done in the env
+        rewards = jnp.array([
+            v
+            for k, v in sorted(
+                timestep.reward.items(), key=lambda item: item[0].index(num_agents)
             )
-            * discount_gamma
-        )
+        ])
+        discounts = jnp.array([
+            v
+            for k, v in sorted(
+                timestep.discount.items(), key=lambda item: item[0].index(num_agents)
+            )
+        ])
+
+        reward = rewards[agent_info.index(num_agents)].reshape(1)
+        discount = discounts[agent_info.index(num_agents)].reshape(1) * discount_gamma
 
         return (
             mctx.RecurrentFnOutput(

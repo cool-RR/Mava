@@ -18,6 +18,7 @@ import dataclasses
 import functools
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
+import chex
 import haiku as hk  # type: ignore
 import jax
 import jax.numpy as jnp
@@ -53,7 +54,7 @@ class MAMCTSNetworks:
         def forward_fn(
             params: Dict[str, jnp.ndarray],
             observations: networks_lib.Observation,
-            key: networks_lib.PRNGKey
+            key: networks_lib.PRNGKey,
         ) -> Tuple[jnp.ndarray, jnp.ndarray]:
             """TODO: Add description here."""
             # The parameters of the network might change. So it has to
@@ -112,7 +113,7 @@ def make_networks(
             key=key,
             policy_layer_sizes=policy_layer_sizes,
             critic_layer_sizes=critic_layer_sizes,
-            observation_network=observation_network
+            observation_network=observation_network,
         )
     else:
         raise NotImplementedError(

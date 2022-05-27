@@ -24,8 +24,8 @@ import optax
 from absl import app, flags
 from acme.jax import utils
 from acme.jax.networks.atari import DeepAtariTorso
-from marlin.mava_exps.environments.debug_env.debug_grid_env_wrapper import (
-    DebugEnvWrapper,
+from mava_exps.environments.jax_pcb_grid_env import (
+    jax_pcb_grid_env_utils,
 )
 from mctx import RecurrentFnOutput, RootFnOutput
 
@@ -36,7 +36,7 @@ from mava.systems.jax.mamcts.mcts_utils import (
     greedy_policy_recurrent_fn,
     random_action_recurrent_fn,
 )
-from mava.utils.debugging.environments.jax.debug_env.new_debug_env import DebugEnv
+# from mava.utils.debugging.environments.jax.debug_env.new_debug_env import DebugEnv
 from mava.utils.loggers import logger_utils
 from mava.wrappers.environment_loop_wrappers import (
     JAXDetailedEpisodeStatistics,
@@ -64,18 +64,18 @@ flags.DEFINE_string(
 flags.DEFINE_string("base_dir", "~/mava", "Base dir to store experiments.")
 
 
-def make_environment(rows=8, cols=8, evaluation: bool = None, num_agents: int = 3):
-
-    return DebugEnvWrapper(
-        DebugEnv(
-            rows,
-            cols,
-            num_agents,
-            reward_for_connection=1.0,
-            reward_for_blocked=-1.0,
-            reward_per_timestep=-1.0 / (rows + cols),
-        )
-    )
+# def make_environment(rows=8, cols=8, evaluation: bool = None, num_agents: int = 3):
+#
+#     return DebugEnvWrapper(
+#         DebugEnv(
+#             rows,
+#             cols,
+#             num_agents,
+#             reward_for_connection=1.0,
+#             reward_for_blocked=-1.0,
+#             reward_per_timestep=-1.0 / (rows + cols),
+#         )
+#     )
 
 
 def network_factory(
@@ -100,7 +100,7 @@ def main(_: Any) -> None:
         _ : _
     """
     # Environment.
-    environment_factory = functools.partial(make_environment)
+    environment_factory = functools.partial(jax_pcb_grid_env_utils.make_environment)
 
     # Checkpointer appends "Checkpoints" to checkpoint_dir
     checkpoint_subpath = f"{FLAGS.base_dir}/{FLAGS.mava_id}"
