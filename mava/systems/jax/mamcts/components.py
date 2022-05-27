@@ -21,8 +21,11 @@ import optax
 from dm_env import specs
 
 from mava.components.jax import Component
-from mava.components.jax.executing import FeedforwardExecutorObserve, ExecutorInit
-from mava.components.jax.executing.observing import ExecutorObserveConfig
+from mava.components.jax.executing.base import ExecutorInit
+from mava.components.jax.executing.observing import (
+    ExecutorObserveConfig,
+    FeedforwardExecutorObserve,
+)
 from mava.core_jax import SystemBuilder, SystemExecutor
 
 
@@ -111,6 +114,7 @@ class LRFDecayingFeedforwardExecutorObserve(FeedforwardExecutorObserve):
     @staticmethod
     def config_class():
         return LRFDecayExecutorObserveConfig
+
 
 class EpisodeCountingExecutorInit(ExecutorInit):
     def on_execution_init_end(self, executor: SystemExecutor):
