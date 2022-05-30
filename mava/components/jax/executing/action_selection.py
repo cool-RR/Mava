@@ -140,9 +140,14 @@ class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
             ].params
             for agent_id in agent_ids
         ]
+        executor.store.key, *rng_keys = jax.random.split(
+            executor.store.key, num_agents + 1
+        )
+
         stacked_agent_ids = tree_utils.stack_trees(agent_ids)
         params = tree_utils.stack_trees(params)
         observations = tree_utils.stack_trees(observations)
+        rng_keys = jnp.array(rng_keys)
 
         # Selecting the first net function from networks. This assumes that all agents have the
         # same network architecture. It seems like it is not possible to do this for agents with
@@ -152,28 +157,23 @@ class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
             executor.store.agent_net_keys[EntityId.first()]
         ].network
 
+        # TODO test if you can jit this function if it pure:
+        #  pass in net
+        #  pass in net.apply
         def forward_fn(observations, params, key):
             return net.apply(params, observations)
 
-        # print("creating vmapped fn")
-
-        vmapped_fn = jax.vmap(
-            functools.partial(
-                self.vmappable_select_action,
-                forward_fn=forward_fn,
-                rng_key=jax.random.PRNGKey(0),
-                executor=executor,
-            )
+        action_infos, policy_infos = jax.vmap(
+            self.vmappable_select_action, in_axes=(0, None, 0, 0, None, None, 0)
+        )(
+            params,
+            net.apply,  # forward_fn,
+            observations,
+            stacked_agent_ids,
+            executor.store.environment_state,
+            executor.store.is_evaluator,
+            rng_keys,
         )
-
-        # print("vmapping actions")
-        action_infos, policy_infos = vmapped_fn(
-            params=params, observation=observations, agent=stacked_agent_ids
-        )
-        # print("vmapped actions")
-
-        print('action infos', type(action_infos[0]))
-        print('policy infos', type(tree_utils.index_stacked_tree(policy_infos, 0)))
 
         for agent_id in agent_ids:
             i = agent_id.index(num_agents)
@@ -183,8 +183,9 @@ class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
                 policy_infos, i
             )
 
+    @functools.partial(jax.jit, static_argnames=["self", "forward_fn", "is_evaluator"])
     def vmappable_select_action(
-        self, params, forward_fn, observation, rng_key, executor, agent
+        self, params, forward_fn, observation, agent, env_state, is_evaluator, rng_key
     ):
         # print("INSIDE VMAP ACTION SELECTION")
         observation = utils.add_batch_dim(observation)
@@ -193,11 +194,17 @@ class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
             forward_fn,
             params,
             rng_key,
-            executor.store.environment_state,
+            env_state,
             observation,
             agent,
-            executor.store.is_evaluator,
+            is_evaluator,
         )
+
+    @functools.partial(jax.jit, static_argnames=["self", "f", "exec"])
+    def dummy(self, f, x, observations, params, aid, exec):
+        print(f, x)
+        print("vmapping")
+        return x
 
     # # Select action
     # def on_execution_select_action_compute(self, executor: SystemExecutor) -> None:
