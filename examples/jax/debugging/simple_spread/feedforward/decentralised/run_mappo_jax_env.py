@@ -26,9 +26,12 @@ from absl import app, flags
 
 from mava.components.jax.building.environments import JAXParallelExecutorEnvironmentLoop
 from mava.systems.jax import mappo
-from mava.utils.debugging.environments.jax.debug_env.new_debug_env import DebugEnv
 from mava.utils.loggers import logger_utils
-from mava.wrappers.JaxDebugEnvWrapper import DebugEnvWrapper
+from mava_exps.environments.jax_pcb_grid_env import (
+    jax_pcb_grid_env_utils,
+)
+
+from mava.wrappers.environment_loop_wrappers import JAXDetailedEpisodeStatistics
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string(
@@ -48,20 +51,6 @@ flags.DEFINE_string(
     "Experiment identifier that can be used to continue experiments.",
 )
 flags.DEFINE_string("base_dir", "~/mava", "Base dir to store experiments.")
-
-
-def make_environment(rows=6, cols=6, evaluation: bool = None, num_agents: int = 1):
-
-    return DebugEnvWrapper(
-        DebugEnv(
-            rows,
-            cols,
-            num_agents,
-            reward_for_connection=1.0,
-            reward_for_blocked=-1.0,
-            reward_per_timestep=-1.0 / (rows + cols),
-        )
-    )
 
 
 def network_factory(
@@ -87,7 +76,7 @@ def main(_: Any) -> None:
     """
 
     environment_factory = functools.partial(
-        make_environment,
+        jax_pcb_grid_env_utils.make_environment, rows=8, cols=8, num_agents=3
     )
 
     # Checkpointer appends "Checkpoints" to checkpoint_dir
@@ -128,6 +117,7 @@ def main(_: Any) -> None:
         num_executors=6,
         multi_process=True,
         learning_rate=0.001,
+        executor_stats_wrapper_class=JAXDetailedEpisodeStatistics,
     )
 
     # Launch the system.

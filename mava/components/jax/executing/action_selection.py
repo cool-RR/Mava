@@ -63,7 +63,7 @@ class FeedforwardExecutorSelectAction(Component):
     # Select action
     def on_execution_select_action_compute(self, executor: SystemExecutor) -> None:
         """Summary"""
-
+        print("OLD SELECT ACTIONS. SHOULD NOT BE CALLED")
         agent = executor.store.agent
         network = executor.store.networks["networks"][
             executor.store.agent_net_keys[agent]
@@ -144,9 +144,10 @@ class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
         params = tree_utils.stack_trees(params)
         observations = tree_utils.stack_trees(observations)
 
-        # Selecting the first net function from networks, this assumes that all agents have the
-        # same network. It seems as it is not possible to do this for agents with different networks
-        # as functions are not jittable and cannot be put into jnp arrays
+        # Selecting the first net function from networks. This assumes that all agents have the
+        # same network architecture. It seems like it is not possible to do this for agents with
+        # different network architectures as functions are not jittable and cannot be put into
+        # jnp arrays
         net = executor.store.networks["networks"][
             executor.store.agent_net_keys[EntityId.first()]
         ].network
@@ -154,14 +155,25 @@ class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
         def forward_fn(observations, params, key):
             return net.apply(params, observations)
 
-        action_infos, policy_infos = jax.vmap(
+        # print("creating vmapped fn")
+
+        vmapped_fn = jax.vmap(
             functools.partial(
                 self.vmappable_select_action,
                 forward_fn=forward_fn,
                 rng_key=jax.random.PRNGKey(0),
                 executor=executor,
             )
-        )(params=params, observation=observations, agent=stacked_agent_ids)
+        )
+
+        # print("vmapping actions")
+        action_infos, policy_infos = vmapped_fn(
+            params=params, observation=observations, agent=stacked_agent_ids
+        )
+        # print("vmapped actions")
+
+        print('action infos', type(action_infos[0]))
+        print('policy infos', type(tree_utils.index_stacked_tree(policy_infos, 0)))
 
         for agent_id in agent_ids:
             i = agent_id.index(num_agents)
@@ -174,6 +186,7 @@ class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
     def vmappable_select_action(
         self, params, forward_fn, observation, rng_key, executor, agent
     ):
+        # print("INSIDE VMAP ACTION SELECTION")
         observation = utils.add_batch_dim(observation)
 
         return self.mcts.get_action(

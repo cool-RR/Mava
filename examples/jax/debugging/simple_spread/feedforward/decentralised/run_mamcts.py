@@ -36,6 +36,7 @@ from mava.systems.jax.mamcts.mcts_utils import (
     greedy_policy_recurrent_fn,
     random_action_recurrent_fn,
 )
+
 # from mava.utils.debugging.environments.jax.debug_env.new_debug_env import DebugEnv
 from mava.utils.loggers import logger_utils
 from mava.wrappers.environment_loop_wrappers import (
@@ -100,7 +101,9 @@ def main(_: Any) -> None:
         _ : _
     """
     # Environment.
-    environment_factory = functools.partial(jax_pcb_grid_env_utils.make_environment)
+    environment_factory = functools.partial(
+        jax_pcb_grid_env_utils.make_environment, rows=8, cols=8, num_agents=3
+    )
 
     # Checkpointer appends "Checkpoints" to checkpoint_dir
     checkpoint_subpath = f"{FLAGS.base_dir}/{FLAGS.mava_id}"
@@ -135,14 +138,14 @@ def main(_: Any) -> None:
         sample_batch_size=128,
         num_minibatches=8,
         num_epochs=4,
-        num_executors=6,
+        num_executors=1,
         multi_process=True,
         root_fn=generic_root_fn(),
         recurrent_fn=greedy_policy_recurrent_fn(discount_gamma=1.0),
         search=mctx.gumbel_muzero_policy,
         environment_model=environment_factory(),
-        num_simulations=20,
-        evaluator_num_simulations=50,
+        num_simulations=5,
+        evaluator_num_simulations=5,
         evaluator_other_search_params=lambda: {"gumbel_scale": 0.0},
         rng_seed=0,
         n_step=10,
