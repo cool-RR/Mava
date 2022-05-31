@@ -155,17 +155,11 @@ class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
         # jnp arrays
         net = executor.store.networks["networks"][
             executor.store.agent_net_keys[EntityId.first()]
-        ].network
-
-        # TODO test if you can jit this function if it pure:
-        #  pass in net
-        #  pass in net.apply
-        # def forward_fn(observations, params, key):
-        #     return net.apply(params, observations)
+        ]
 
         action_infos, policy_infos = self.batch_select_action(
             params,
-            net.apply,  # forward_fn,
+            net.forward_fn,
             observations,
             stacked_agent_ids,
             executor.store.environment_state,

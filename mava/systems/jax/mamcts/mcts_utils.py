@@ -17,7 +17,9 @@ def generic_root_fn():
         Callable function used by the MCTS component"""
 
     def root_fn(forward_fn, params, rng_key, env_state, observation):
-        prior_logits, values = forward_fn(params, observation)  # key=rng_key
+        prior_logits, values = forward_fn(
+            observations=observation, params=params, key=rng_key
+        )
 
         return mctx.RootFnOutput(
             prior_logits=prior_logits.logits,
@@ -179,7 +181,9 @@ def greedy_policy_recurrent_fn(discount_gamma=0.99) -> Callable:
             environment_model.get_observation, in_axes=(None, 0)
         )(env_state, stacked_agents)
 
-        prev_prior_logits, _ = forward_fn(params, prev_observations)
+        prev_prior_logits, _ = forward_fn(
+            observations=prev_observations, params=params, key=rng_key
+        )
 
         other_agent_masks = jax.vmap(
             environment_model.get_agent_mask, in_axes=(None, 0)
@@ -199,11 +203,9 @@ def greedy_policy_recurrent_fn(discount_gamma=0.99) -> Callable:
 
         observation = environment_model.get_observation(next_state, agent_info)
 
-        prior_logits, values = forward_fn(params, utils.add_batch_dim(observation))
-        # prior_logits, values = forward_fn(
-        #     observations=utils.add_batch_dim(observation),
-        #     params=params,  # key=rng_key
-        # )
+        prior_logits, values = forward_fn(
+            observations=utils.add_batch_dim(observation), params=params, key=rng_key
+        )
 
         agent_mask = utils.add_batch_dim(
             environment_model.get_agent_mask(next_state, agent_info)
@@ -215,23 +217,18 @@ def greedy_policy_recurrent_fn(discount_gamma=0.99) -> Callable:
 
         # sort and place items in list
         # TODO (sasha): this should be done in the env
-        rewards = jnp.array(
-            [
-                v
-                for k, v in sorted(
-                    timestep.reward.items(), key=lambda item: item[0].index(num_agents)
-                )
-            ]
-        )
-        discounts = jnp.array(
-            [
-                v
-                for k, v in sorted(
-                    timestep.discount.items(),
-                    key=lambda item: item[0].index(num_agents),
-                )
-            ]
-        )
+        rewards = jnp.array([
+            v
+            for k, v in sorted(
+                timestep.reward.items(), key=lambda item: item[0].index(num_agents)
+            )
+        ])
+        discounts = jnp.array([
+            v
+            for k, v in sorted(
+                timestep.discount.items(), key=lambda item: item[0].index(num_agents)
+            )
+        ])
 
         reward = rewards[agent_info.index(num_agents)].reshape(1)
         discount = discounts[agent_info.index(num_agents)].reshape(1) * discount_gamma
