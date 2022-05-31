@@ -184,7 +184,6 @@ class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
     def batch_select_action(
         self, params, forward_fn, observation, agent, env_state, is_evaluator, rng_key
     ):
-        # print("INSIDE VMAP ACTION SELECTION")
         observation = utils.add_batch_dim(observation)
 
         return self.mcts.get_action(
