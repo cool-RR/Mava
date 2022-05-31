@@ -160,12 +160,10 @@ class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
         # TODO test if you can jit this function if it pure:
         #  pass in net
         #  pass in net.apply
-        def forward_fn(observations, params, key):
-            return net.apply(params, observations)
+        # def forward_fn(observations, params, key):
+        #     return net.apply(params, observations)
 
-        action_infos, policy_infos = jax.vmap(
-            self.vmappable_select_action, in_axes=(0, None, 0, 0, None, None, 0)
-        )(
+        action_infos, policy_infos = self.batch_select_action(
             params,
             net.apply,  # forward_fn,
             observations,
@@ -183,8 +181,13 @@ class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
                 policy_infos, i
             )
 
+    @staticmethod
+    def config_class() -> Callable:
+        return MCTSConfig
+
     @functools.partial(jax.jit, static_argnames=["self", "forward_fn", "is_evaluator"])
-    def vmappable_select_action(
+    @functools.partial(jax.vmap, in_axes=(None, 0, None, 0, 0, None, None, 0))
+    def batch_select_action(
         self, params, forward_fn, observation, agent, env_state, is_evaluator, rng_key
     ):
         # print("INSIDE VMAP ACTION SELECTION")
@@ -199,36 +202,3 @@ class MCTSFeedforwardExecutorSelectAction(FeedforwardExecutorSelectAction):
             agent,
             is_evaluator,
         )
-
-    @functools.partial(jax.jit, static_argnames=["self", "f", "exec"])
-    def dummy(self, f, x, observations, params, aid, exec):
-        print(f, x)
-        print("vmapping")
-        return x
-
-    # # Select action
-    # def on_execution_select_action_compute(self, executor: SystemExecutor) -> None:
-    #     """Summary"""
-    #
-    #     agent = executor.store.agent
-    #     network = executor.store.networks["networks"][
-    #         executor.store.agent_net_keys[agent]
-    #     ]
-    #
-    #     rng_key, executor.store.key = jax.random.split(executor.store.key)
-    #
-    #     observation = utils.add_batch_dim(executor.store.observation.observation)
-    #
-    #     executor.store.action_info, executor.store.policy_info = self.mcts.get_action(
-    #         network.forward_fn,
-    #         network.params,
-    #         rng_key,
-    #         executor.store.environment_state,
-    #         observation,
-    #         agent,
-    #         executor.store.is_evaluator,
-    #     )
-
-    @staticmethod
-    def config_class() -> Callable:
-        return MCTSConfig

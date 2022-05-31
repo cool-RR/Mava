@@ -57,6 +57,19 @@ flags.DEFINE_string(
     "Environment action space type (str).",
 )
 
+flags.DEFINE_integer(
+    "num_agents",
+    1,
+    "number of agents"
+)
+
+
+flags.DEFINE_integer(
+    "size",
+    20,
+    "board size"
+)
+
 flags.DEFINE_string(
     "mava_id",
     str(datetime.now()),
@@ -102,7 +115,7 @@ def main(_: Any) -> None:
     """
     # Environment.
     environment_factory = functools.partial(
-        jax_pcb_grid_env_utils.make_environment, rows=8, cols=8, num_agents=3
+        jax_pcb_grid_env_utils.make_environment, rows=FLAGS.size, cols=FLAGS.size, num_agents=FLAGS.num_agents, step_limit=60
     )
 
     # Checkpointer appends "Checkpoints" to checkpoint_dir
