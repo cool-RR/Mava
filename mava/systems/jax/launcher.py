@@ -140,7 +140,7 @@ class Launcher:
             lp.launch(
                 self._program,
                 lp.LaunchType.LOCAL_MULTI_PROCESSING,
-                terminal="gnome-terminal",
+                terminal="current_terminal",
                 local_resources=local_resources,
             )
         else:
